@@ -1,0 +1,53 @@
+# Secrets / env
+.env
+.env.*
+*.env
+secrets/
+tokens/
+credentials/
+auth-state.json
+auth-profiles.json
+device-auth.json
+exec-approvals.json
+
+# Runtime / OpenClaw state
+.openclaw/
+openclaw-config/
+sessions/
+trajectories/
+trajectory*.jsonl
+*.trajectory.jsonl
+*.trajectory-path.json
+*.jsonl
+*.reset.*
+*.bak
+*.backup*
+*.save
+*.stable
+*.backup-token
+
+# Local config
+openclaw.json
+litellm/config.yaml
+
+# Generated / cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+venv/
+venvs/
+
+# Logs / outputs
+logs/
+reports/
+dashboard-v2/data/*.json
+
+# Backups / snapshots
+backups/
+snapshots/
+
+# Browser / media runtime
+browser/
+media/inbound/
+cron/runs/
