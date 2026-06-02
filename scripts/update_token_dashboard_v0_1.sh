@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="/openclaw/workspace/git_clean/neodaemon_repo"
+REPO_DIR="/openclaw/workspace/git_clean/neodaemon_v1"
 OUTPUT_FILE="$REPO_DIR/dashboard-v2/data/token_dashboard_v0_1.json"
 
 cd "$REPO_DIR"
