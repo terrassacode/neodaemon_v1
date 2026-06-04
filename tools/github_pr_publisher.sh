@@ -122,7 +122,10 @@ main() {
     exit 0
   fi
 
-  git push -u origin "$branch"
+  if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+  echo "BLOCKED: branch '$branch' does not exist on origin. Run github_pr_publisher_token.sh first." >&2
+  exit 1
+    fi
 
   body="$(cat "$body_file")"
   title_json="$(printf '%s' "$title" | json_escape)"
