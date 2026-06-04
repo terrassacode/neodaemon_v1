@@ -63,9 +63,11 @@ def main():
     now = datetime.now(timezone.utc)
     window_60m_start = now - timedelta(minutes=WINDOW_MINUTES)
     window_24h_start = now - timedelta(hours=WINDOW_24H)
+    previous_24h_start = now - timedelta(hours=WINDOW_24H * 2)
 
     total = empty_bucket()
     last_24h = empty_bucket()
+    previous_24h = empty_bucket()
     last_60m = empty_bucket()
     latest = None
 
@@ -85,7 +87,7 @@ def main():
                 files_error += 1
                 continue
 
-            if mtime < window_24h_start:
+            if mtime < previous_24h_start:
                 files_skipped_old += 1
                 continue
 
@@ -132,10 +134,41 @@ def main():
                 files_error += 1
                 continue
 
+    current_tokens = last_24h["total_tokens"]
+    previous_tokens = previous_24h["total_tokens"]
+
+    if current_tokens == 0 and previous_tokens == 0:
+        rolling_status = "sin datos suficientes"
+        delta_tokens = 0
+        delta_percent = None
+    elif previous_tokens == 0:
+        rolling_status = "sin base anterior"
+        delta_tokens = current_tokens
+        delta_percent = None
+    else:
+        delta_tokens = current_tokens - previous_tokens
+        delta_percent = round((delta_tokens / previous_tokens) * 100, 1)
+        rolling_status = "ok"
+
     data = {
         "updated_at": now.isoformat(),
         "total": total,
         "last_24h": last_24h,
+        "rolling_24h_comparison": {
+            "current_24h_tokens": current_tokens,
+            "previous_24h_tokens": previous_tokens,
+            "delta_tokens": delta_tokens,
+            "delta_percent": delta_percent,
+            "status": rolling_status,
+            "window_current": {
+                "from": window_24h_start.isoformat(),
+                "to": now.isoformat()
+            },
+            "window_previous": {
+                "from": previous_24h_start.isoformat(),
+                "to": window_24h_start.isoformat()
+            }
+        },
         "last_iteration": {
             "timestamp": latest["timestamp"].isoformat() if latest else None,
             "input_tokens": latest["input_tokens"] if latest else 0,
