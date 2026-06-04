@@ -137,9 +137,28 @@
       `;
     }
 
+    function comparisonCard(comparison) {
+      const current = comparison?.current_24h_tokens || 0;
+      const previous = comparison?.previous_24h_tokens || 0;
+      const status = comparison?.status || "sin datos suficientes";
+      const delta = comparison?.delta_percent;
+      const deltaText = delta === null || delta === undefined
+        ? status
+        : `${delta > 0 ? "+" : ""}${delta}% vs 24h anteriores`;
+
+      return `
+        <div class="card wide">
+          <div class="label">Comparación consumo 24h estimada</div>
+          <div class="value">${deltaText}</div>
+          <div class="muted">Últimas 24h: ${numberText(current)} tokens · 24h anteriores: ${numberText(previous)} tokens</div>
+        </div>
+      `;
+    }
+
     function render(data) {
       const total = data.total || {};
       const last24h = data.last_24h || {};
+      const comparison = data.rolling_24h_comparison || {};
       const last = data.last_iteration || {};
 
       document.getElementById("updated").textContent =
@@ -152,6 +171,7 @@
         ${card("Tokens entrada últimas 24h", last24h.input_tokens)}
         ${card("Tokens salida últimas 24h", last24h.output_tokens)}
         ${card("Tokens última interacción", last.total_tokens, `Fecha: ${formatDate(last.timestamp)}`)}
+        ${comparisonCard(comparison)}
       `;
     }
 
