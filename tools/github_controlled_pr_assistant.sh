@@ -36,8 +36,8 @@ require_clean_repo() {
 }
 
 require_on_main() {
-  branch="$(git branch --show-current)"
-  [ "$branch" = "main" ] || die "must start from main, current branch: $branch"
+  current_branch="$(git branch --show-current)"
+  [ "$current_branch" = "main" ] || die "must start from main, current branch: $current_branch"
 }
 
 is_allowed_doc_path() {
@@ -223,7 +223,7 @@ autopilot_safe() {
   echo "AUTOPILOT_READY"
   echo "branch: $branch"
   echo "Apply changes now, then run:"
-  echo "  tools/github_controlled_pr_assistant.sh autopilot-commit "$branch" "$title" "$body_file" "$message""
+  printf '  tools/github_controlled_pr_assistant.sh autopilot-commit %q %q %q %q\n' "$branch" "$title" "$body_file" "$message"
 }
 
 autopilot_commit() {
