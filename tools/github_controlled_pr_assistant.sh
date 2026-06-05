@@ -78,6 +78,31 @@ require_not_protected_path() {
   esac
 }
 
+append_autopilot_decision() {
+  feature="$1"
+  result="$2"
+  reason="$3"
+  log_path="/home/openclaw/.openclaw/neodaemon/autopilot_decision_log.jsonl"
+
+  mkdir -p "$(dirname "$log_path")"
+
+  FEATURE="$feature" RESULT="$result" REASON="$reason" LOG_PATH="$log_path" python3 - <<'PYJSON'
+import json
+import os
+from datetime import datetime, timezone
+
+record = {
+    "timestamp": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+    "feature": os.environ["FEATURE"],
+    "result": os.environ["RESULT"],
+    "reason": os.environ["REASON"],
+}
+
+with open(os.environ["LOG_PATH"], "a", encoding="utf-8") as f:
+    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+PYJSON
+}
+
 is_allowed_autopilot_path() {
   case "$1" in
     docs/*|task_manager/*|scripts/*.py|tools/*.sh|tests/*|README.md|*.md|dashboard-v2/tools/*)
@@ -104,10 +129,12 @@ validate_autopilot_trust_zone() {
   file="$1"
 
   if is_blocked_autopilot_path "$file"; then
+    append_autopilot_decision "$(git branch --show-current)" "BLOCKED" "blocked_path"
     die "autopilot blocked path: $file"
   fi
 
   if ! is_allowed_autopilot_path "$file"; then
+    append_autopilot_decision "$(git branch --show-current)" "BLOCKED" "outside_trust_zone"
     die "autopilot path outside trust zone: $file"
   fi
 }
@@ -279,6 +306,8 @@ autopilot_commit() {
     validate_autopilot_trust_zone "$file"
     validate_changed_file "$file"
   done
+
+  append_autopilot_decision "$branch" "ALLOWED" "trust_zone_ok"
 
   git diff --stat
   git add -- $changed
