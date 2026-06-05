@@ -43,6 +43,35 @@ Si tras 3 intercambios no hay decisión clara, devolver:
 NECESITA_ALBERT
 ```
 
+## Protocolos de comunicación obligatorios
+
+### GPT → NeoDaemon: PROTOCOLO_OPERATIVO_V1
+
+Toda comunicación de GPT hacia NeoDaemon debe ser estricta y estructurada.
+
+Debe incluir:
+
+- objetivo;
+- alcance;
+- restricciones;
+- validaciones esperadas;
+- formato de salida requerido.
+
+La comunicación debe evitar ambigüedad, no mezclar objetivos y respetar el límite máximo de 3 intercambios.
+
+### NeoDaemon → Albert: VALIDATION_OUTPUT_V1
+
+Toda comunicación de NeoDaemon hacia Albert debe ser clara para no programadores.
+
+Debe incluir:
+
+- resumen humano;
+- evidencia técnica mínima;
+- resultado claro;
+- siguiente acción mínima.
+
+Debe evitar jerga innecesaria y separar claramente hechos confirmados, riesgos y bloqueos.
+
 ## Qué NO debe hacer
 
 - No ejecutar comandos.
