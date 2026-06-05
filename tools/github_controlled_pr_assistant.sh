@@ -36,8 +36,8 @@ require_clean_repo() {
 }
 
 require_on_main() {
-  branch="$(git branch --show-current)"
-  [ "$branch" = "main" ] || die "must start from main, current branch: $branch"
+  current_branch="$(git branch --show-current)"
+  [ "$current_branch" = "main" ] || die "must start from main, current branch: $current_branch"
 }
 
 is_allowed_doc_path() {
