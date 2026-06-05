@@ -78,6 +78,40 @@ require_not_protected_path() {
   esac
 }
 
+is_allowed_autopilot_path() {
+  case "$1" in
+    docs/*|task_manager/*|scripts/*.py|tools/*.sh|tests/*|README.md|*.md|dashboard-v2/tools/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_blocked_autopilot_path() {
+  case "$1" in
+    .env|*/.env|*secret*|*token*|*credential*|*oauth*|*password*|*key*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+validate_autopilot_trust_zone() {
+  file="$1"
+
+  if is_blocked_autopilot_path "$file"; then
+    die "autopilot blocked path: $file"
+  fi
+
+  if ! is_allowed_autopilot_path "$file"; then
+    die "autopilot path outside trust zone: $file"
+  fi
+}
+
 require_no_sensitive_diff() {
   if git diff --cached -- . | grep -Eiq '(token|secret|oauth|credential|password|authorization|bearer|refresh_token|client_secret|api[_-]?key)'; then
     die "sensitive pattern detected in staged diff"
@@ -242,6 +276,7 @@ autopilot_commit() {
   [ -n "$changed" ] || die "no changed files detected"
 
   for file in $changed; do
+    validate_autopilot_trust_zone "$file"
     validate_changed_file "$file"
   done
 
