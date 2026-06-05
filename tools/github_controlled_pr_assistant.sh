@@ -223,7 +223,7 @@ autopilot_safe() {
   echo "AUTOPILOT_READY"
   echo "branch: $branch"
   echo "Apply changes now, then run:"
-  echo "  tools/github_controlled_pr_assistant.sh autopilot-commit "$branch" "$title" "$body_file" "$message""
+  printf '  tools/github_controlled_pr_assistant.sh autopilot-commit %q %q %q %q\n' "$branch" "$title" "$body_file" "$message"
 }
 
 autopilot_commit() {
