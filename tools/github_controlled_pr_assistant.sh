@@ -222,7 +222,7 @@ prepare() {
   message="$3"
 
   require_safe_branch_name "$branch"
-  require_allowed_file "$file"
+  validate_autopilot_trust_zone "$file"
   require_clean_repo
   require_on_main
 
