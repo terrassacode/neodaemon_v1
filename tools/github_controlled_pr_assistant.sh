@@ -112,13 +112,16 @@ validate_changed_file() {
 safe_body_file() {
   file="$1"
 
+  [ -f "$file" ] || die "body_file not found"
+
   case "$file" in
-    /tmp/*.md)
-      [ -f "$file" ] || die "body_file not found"
-      ;;
-    *)
-      die "body_file must be /tmp/*.md"
-      ;;
+    /tmp/*) ;;
+    *) die "body_file must be under /tmp" ;;
+  esac
+
+  case "$file" in
+    *.md) ;;
+    *) die "body_file must be a .md file" ;;
   esac
 }
 
