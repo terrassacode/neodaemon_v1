@@ -56,6 +56,72 @@ require_allowed_file() {
   is_allowed_doc_path "$file" || die "only docs/**/*.md files are allowed: $file"
 }
 
+require_not_protected_path() {
+  file="$1"
+
+  case "$file" in
+    .env|*.env|*/.env|*token*|*secret*|*password*|*credential*|*apikey*|*api_key*|*auth*)
+      die "protected or sensitive path blocked: $file"
+      ;;
+    logs/*|backups/*|snapshots/*|sessions/*|*/sessions/*|*.log|*.jsonl|*.jsonl.*)
+      die "logs/backups/snapshots/sessions are blocked: $file"
+      ;;
+    dashboard-v2/data/*|outputs/*)
+      die "generated data manual write blocked: $file"
+      ;;
+    projects/openclaw-knowledge-wiki/raw/*)
+      die "protected raw project path blocked: $file"
+      ;;
+    gateway*|routing*|models*|systemd*|*.service|*.timer)
+      die "core/routing/model/systemd path blocked: $file"
+      ;;
+  esac
+}
+
+require_no_sensitive_diff() {
+  if git diff --cached -- . | grep -Eiq '(token|secret|oauth|credential|password|authorization|bearer|refresh_token|client_secret|api[_-]?key)'; then
+    die "sensitive pattern detected in staged diff"
+  fi
+}
+
+validate_changed_file() {
+  file="$1"
+
+  require_not_protected_path "$file"
+
+  case "$file" in
+    *.py)
+      python3 -m py_compile "$file"
+      ;;
+    *.sh)
+      bash -n "$file"
+      ;;
+    *.json)
+      python3 -m json.tool "$file" >/dev/null
+      ;;
+    *.html|*.css|*.js|*.md)
+      test -f "$file"
+      ;;
+    *)
+      test -f "$file"
+      ;;
+  esac
+}
+
+
+safe_body_file() {
+  file="$1"
+
+  case "$file" in
+    /tmp/*.md)
+      [ -f "$file" ] || die "body_file not found"
+      ;;
+    *)
+      die "body_file must be /tmp/*.md"
+      ;;
+  esac
+}
+
 require_safe_branch_name() {
   branch="$1"
 
@@ -138,6 +204,60 @@ commit_doc() {
   echo "file: $file"
 }
 
+autopilot_safe() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  require_safe_branch_name "$branch"
+  safe_body_file "$body_file"
+  require_clean_repo
+  require_on_main
+
+  git switch -c "$branch"
+
+  echo "AUTOPILOT_READY"
+  echo "branch: $branch"
+  echo "Apply changes now, then run:"
+  echo "  tools/github_controlled_pr_assistant.sh autopilot-commit "$branch" "$title" "$body_file" "$message""
+}
+
+autopilot_commit() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  require_safe_branch_name "$branch"
+  safe_body_file "$body_file"
+
+  current="$(git branch --show-current)"
+  [ "$current" = "$branch" ] || die "current branch must match autopilot branch"
+
+  changed="$(git status --porcelain | awk '{print $2}')"
+  [ -n "$changed" ] || die "no changed files detected"
+
+  for file in $changed; do
+    validate_changed_file "$file"
+  done
+
+  git diff --stat
+  git add -- $changed
+  require_no_sensitive_diff
+  git commit -m "$message"
+
+  OK_GITHUB=1 tools/github_pr_publisher_token.sh "$branch"
+  OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
+
+  echo "FEATURE_AUTOPILOT_SAFE_DONE"
+  echo "branch: $branch"
+  echo "commit: $(git log --oneline -1)"
+  echo "ssh_manual_count: 1"
+  echo "approval_count: 0"
+  echo "human_intervention_count: 1"
+}
+
 publish() {
   branch="$1"
 
@@ -188,6 +308,14 @@ case "$cmd" in
   publish)
     [ "$#" -eq 2 ] || die "publish requires: <branch-name>"
     publish "$2"
+    ;;
+  autopilot-safe)
+    [ "$#" -eq 5 ] || die "autopilot-safe requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
+    autopilot_safe "$2" "$3" "$4" "$5"
+    ;;
+  autopilot-commit)
+    [ "$#" -eq 5 ] || die "autopilot-commit requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
+    autopilot_commit "$2" "$3" "$4" "$5"
     ;;
   -h|--help|help|"")
     usage

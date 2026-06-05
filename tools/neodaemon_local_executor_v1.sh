@@ -33,6 +33,8 @@ Allowed actions:
   github_status
   github_publish_token
   github_create_pr
+  autopilot_safe
+  autopilot_commit
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -40,6 +42,8 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_publish_token","branch":"docs/example"}'
 
   tools/neodaemon_local_executor_v1.sh '{"action":"github_create_pr","branch":"docs/example","title":"docs: example","body_file":"/tmp/pr.md"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
 USAGE
 }
 
@@ -98,6 +102,36 @@ github_create_pr() {
   tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
 }
 
+autopilot_safe() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  safe_branch "$branch"
+  [ -n "$title" ] || die "title required"
+  safe_body_file "$body_file"
+  [ -n "$message" ] || die "message required"
+
+  tools/github_controlled_pr_assistant.sh autopilot-safe "$branch" "$title" "$body_file" "$message"
+}
+
+autopilot_commit() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  safe_branch "$branch"
+  [ -n "$title" ] || die "title required"
+  safe_body_file "$body_file"
+  [ -n "$message" ] || die "message required"
+
+  [ "${OK_GITHUB:-0}" = "1" ] || die "autopilot_commit requires OK_GITHUB=1"
+
+  OK_GITHUB=1 tools/github_controlled_pr_assistant.sh autopilot-commit "$branch" "$title" "$body_file" "$message"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -122,6 +156,12 @@ main() {
       ;;
     github_create_pr)
       github_create_pr "$branch" "$title" "$body_file"
+      ;;
+    autopilot_safe)
+      autopilot_safe "$branch" "$title" "$body_file" "$message"
+      ;;
+    autopilot_commit)
+      autopilot_commit "$branch" "$title" "$body_file" "$message"
       ;;
     *)
       die "unknown action"
