@@ -466,3 +466,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+AUTOPILOT_SCRIPT_E2E_V1_RETRY = True
