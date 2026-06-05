@@ -79,6 +79,32 @@ github_status() {
   printf '{"status":"OK","action":"github_status","branch":"%s","working_tree":"%s","safe":true,"logs_redacted":true}\n' "$branch" "$status"
 }
 
+github_sync_main() {
+  before_status="$(git status --porcelain)"
+  if [ -n "$before_status" ]; then
+    printf '{"status":"BLOCKED","action":"github_sync_main","summary":"working tree not clean","safe":true,"logs_redacted":true}\n'
+    return 1
+  fi
+
+  git switch main >/dev/null
+  git pull --ff-only origin main >/dev/null
+
+  branch="$(git branch --show-current)"
+  after_status="$(git status --porcelain)"
+
+  if [ "$branch" != "main" ]; then
+    printf '{"status":"ERROR","action":"github_sync_main","summary":"final branch is not main","safe":true,"logs_redacted":true}\n'
+    return 1
+  fi
+
+  if [ -n "$after_status" ]; then
+    printf '{"status":"ERROR","action":"github_sync_main","summary":"working tree dirty after sync","branch":"%s","safe":true,"logs_redacted":true}\n' "$branch"
+    return 1
+  fi
+
+  printf '{"status":"OK","action":"github_sync_main","branch":"%s","working_tree":"","safe":true,"logs_redacted":true}\n' "$branch"
+}
+
 github_publish_token() {
   branch="$1"
   safe_branch "$branch"
@@ -150,6 +176,10 @@ main() {
   case "$action" in
     github_status)
       github_status
+      ;;
+    github_sync_main)
+      [ -z "$branch$title$body_file" ] || die "github_sync_main does not accept parameters"
+      github_sync_main
       ;;
     github_publish_token)
       github_publish_token "$branch"
