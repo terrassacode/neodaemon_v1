@@ -95,6 +95,15 @@ Debe incluir:
 - resultado claro;
 - siguiente acción mínima.
 
+Regla de minimalismo:
+
+- primero resumen claro para Albert;
+- después evidencia técnica mínima;
+- comandos solo si Albert los pide o son imprescindibles;
+- evitar listas largas;
+- evitar diseñar más de lo pedido;
+- si la respuesta crece demasiado, devolver `NECESITA_ALBERT`.
+
 Debe evitar jerga innecesaria y separar claramente hechos confirmados, riesgos y bloqueos.
 
 ## Qué NO debe hacer
