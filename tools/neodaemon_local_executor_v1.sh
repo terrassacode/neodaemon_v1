@@ -34,6 +34,7 @@ Allowed actions:
   github_publish_token
   github_create_pr
   github_post_merge_close
+  github_post_merge_cleanup_assistant
   autopilot_safe
   autopilot_commit
 
@@ -45,6 +46,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_create_pr","branch":"docs/example","title":"docs: example","body_file":"/tmp/pr.md"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_close","mode":"check","branch":"docs/example","pr_number":"123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_close","mode":"list_candidates"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_cleanup_assistant"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
 USAGE
@@ -271,6 +273,117 @@ PYJSON
     "$branch" "$pr_number" "$current_branch" "$working_tree_clean" "$main_current" "$main_updated" "$local_branch_exists" "$remote_branch_exists" "$local_branch_merged" "$cleanup_ready" "$recommended_next_action"
 }
 
+
+github_post_merge_cleanup_assistant() {
+  pr_number="$1"
+  confirmation="$2"
+
+  if [ -n "$confirmation" ]; then
+    parsed="$(CONFIRMATION="$confirmation" python3 - <<'PYJSON'
+import os
+import re
+
+confirmation = os.environ.get("CONFIRMATION", "")
+match = re.fullmatch(r"OK CLEANUP PR #(\d+) branch ([A-Za-z0-9._/-]+)", confirmation)
+if not match:
+    raise SystemExit(1)
+
+print(match.group(1) + "\t" + match.group(2))
+PYJSON
+)" || die "missing exact OK CLEANUP confirmation"
+
+    cleanup_pr_number="$(printf '%s' "$parsed" | awk '{print $1}')"
+    cleanup_branch="$(printf '%s' "$parsed" | awk '{print $2}')"
+
+    github_post_merge_close "cleanup" "$cleanup_branch" "$cleanup_pr_number" "$confirmation"
+    return 0
+  fi
+
+  PR_NUMBER="$pr_number" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+
+def git_lines(*args):
+    result = subprocess.run(["git", *args], check=False, text=True, capture_output=True)
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+def git_ok(*args):
+    return subprocess.run(["git", *args], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+current = git_lines("branch", "--show-current")
+current_branch = current[0] if current else ""
+working_tree_clean = not git_lines("status", "--short")
+main_current = current_branch == "main"
+
+main_counts = git_lines("rev-list", "--left-right", "--count", "main...origin/main")
+main_updated = bool(main_counts and main_counts[0].split() == ["0", "0"])
+
+local_branches = [
+    b for b in git_lines("branch", "--format=%(refname:short)")
+    if b not in {"main", "master"}
+]
+
+remote_branches = []
+for branch in git_lines("branch", "-r", "--format=%(refname:short)"):
+    if branch == "origin/HEAD":
+        continue
+    if branch.startswith("origin/"):
+        branch = branch[len("origin/"):]
+    if branch not in {"main", "master"}:
+        remote_branches.append(branch)
+
+candidates = []
+for branch in sorted(set(local_branches) | set(remote_branches)):
+    local_exists = branch in local_branches
+    remote_exists = branch in remote_branches
+    local_merged = local_exists and git_ok("branch", "--merged", "main", "--list", branch)
+    cleanup_ready = bool(working_tree_clean and main_current and main_updated and local_merged)
+    if cleanup_ready:
+        candidates.append({
+            "branch": branch,
+            "local_branch_exists": local_exists,
+            "remote_branch_exists": remote_exists,
+            "local_branch_merged": local_merged,
+            "cleanup_ready": cleanup_ready,
+            "recommended_next_action": "cleanup allowed only with exact OK CLEANUP confirmation",
+        })
+
+provided_pr = os.environ.get("PR_NUMBER", "")
+
+response = {
+    "status": "OK",
+    "action": "github_post_merge_cleanup_assistant",
+    "current_branch": current_branch,
+    "working_tree_clean": working_tree_clean,
+    "main_current": main_current,
+    "main_updated": main_updated,
+    "cleanup_ready_count": len(candidates),
+    "candidates": candidates,
+    "safe": True,
+    "logs_redacted": True,
+}
+
+if not candidates:
+    response["next_action"] = "nothing_to_cleanup"
+elif len(candidates) == 1:
+    branch = candidates[0]["branch"]
+    if provided_pr:
+        response["pr_number"] = int(provided_pr)
+        response["required_confirmation"] = f"OK CLEANUP PR #{provided_pr} branch {branch}"
+        response["next_action"] = "ask_albert_for_exact_cleanup_confirmation"
+    else:
+        response["next_action"] = "provide_pr_number_for_exact_cleanup_confirmation"
+else:
+    response["next_action"] = "select_one_candidate"
+
+print(json.dumps(response, separators=(",", ":")))
+PYJSON
+}
+
+
 autopilot_safe() {
   branch="$1"
   title="$2"
@@ -336,6 +449,10 @@ main() {
     github_post_merge_close)
       [ -z "$title$body_file" ] || die "github_post_merge_close does not accept title/body_file"
       github_post_merge_close "$mode" "$branch" "$pr_number" "$confirmation"
+      ;;
+    github_post_merge_cleanup_assistant)
+      [ -z "$branch$title$body_file$mode" ] || die "github_post_merge_cleanup_assistant accepts only pr_number/confirmation"
+      github_post_merge_cleanup_assistant "$pr_number" "$confirmation"
       ;;
     autopilot_safe)
       autopilot_safe "$branch" "$title" "$body_file" "$message"
