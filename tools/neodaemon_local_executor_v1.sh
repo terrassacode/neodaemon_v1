@@ -33,6 +33,7 @@ Allowed actions:
   github_status
   github_publish_token
   github_create_pr
+  github_post_merge_close
   autopilot_safe
   autopilot_commit
 
@@ -42,6 +43,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_publish_token","branch":"docs/example"}'
 
   tools/neodaemon_local_executor_v1.sh '{"action":"github_create_pr","branch":"docs/example","title":"docs: example","body_file":"/tmp/pr.md"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_close","mode":"check","branch":"docs/example","pr_number":"123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
 USAGE
@@ -128,6 +130,76 @@ github_create_pr() {
   tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
 }
 
+
+github_post_merge_close() {
+  mode="$1"
+  branch="$2"
+  pr_number="$3"
+  confirmation="$4"
+
+  [ "$mode" = "check" ] || [ "$mode" = "cleanup" ] || die "invalid mode"
+  safe_branch "$branch"
+  [ -n "$pr_number" ] || die "pr_number required"
+  printf '%s' "$pr_number" | grep -Eq '^[0-9]+$' || die "invalid pr_number"
+
+  current_branch="$(git branch --show-current)"
+  working_tree="$(git status --short)"
+
+  working_tree_clean=false
+  main_current=false
+  main_updated=false
+  local_branch_exists=false
+  remote_branch_exists=false
+  local_branch_merged=false
+  cleanup_ready=false
+  recommended_next_action="manual review required"
+
+  [ -z "$working_tree" ] && working_tree_clean=true
+  [ "$current_branch" = "main" ] && main_current=true
+
+  main_counts="$(git rev-list --left-right --count main...origin/main 2>/dev/null || true)"
+  [ "$(printf '%s' "$main_counts" | awk '{print $1 " " $2}')" = "0 0" ] && main_updated=true
+
+  git branch --list "$branch" | grep -q . && local_branch_exists=true
+  git branch -r --list "origin/$branch" | grep -q . && remote_branch_exists=true
+  git branch --merged main --list "$branch" | grep -q . && local_branch_merged=true
+
+  if [ "$working_tree_clean" = "true" ] && [ "$main_current" = "true" ] && [ "$main_updated" = "true" ] && [ "$local_branch_merged" = "true" ]; then
+    cleanup_ready=true
+    recommended_next_action="cleanup allowed only with exact OK CLEANUP confirmation"
+  fi
+
+  if [ "$mode" = "cleanup" ]; then
+    expected_confirmation="OK CLEANUP PR #$pr_number branch $branch"
+
+    [ "$confirmation" = "$expected_confirmation" ] || die "missing exact OK CLEANUP confirmation"
+    [ "$cleanup_ready" = "true" ] || die "cleanup checks failed"
+
+    if [ "$local_branch_exists" = "true" ]; then
+      git branch -d "$branch" >/dev/null
+    fi
+
+    if [ "$remote_branch_exists" = "true" ]; then
+      git push origin --delete "$branch" >/dev/null
+    fi
+
+    final_status="$(git status --short)"
+    final_local_exists=false
+    final_remote_exists=false
+    git branch --list "$branch" | grep -q . && final_local_exists=true
+    git branch -r --list "origin/$branch" | grep -q . && final_remote_exists=true
+
+    [ -z "$final_status" ] || die "working tree dirty after cleanup"
+
+    printf '{"status":"OK","action":"github_post_merge_close","mode":"cleanup","branch":"%s","pr_number":%s,"current_branch":"%s","local_branch_exists":%s,"remote_branch_exists":%s,"final_local_branch_exists":%s,"final_remote_branch_exists":%s,"safe":true,"logs_redacted":true}\n' \
+      "$branch" "$pr_number" "$current_branch" "$local_branch_exists" "$remote_branch_exists" "$final_local_exists" "$final_remote_exists"
+    return 0
+  fi
+
+  printf '{"status":"OK","action":"github_post_merge_close","mode":"check","branch":"%s","pr_number":%s,"current_branch":"%s","working_tree_clean":%s,"main_current":%s,"main_updated":%s,"local_branch_exists":%s,"remote_branch_exists":%s,"local_branch_merged":%s,"cleanup_ready":%s,"recommended_next_action":"%s","safe":true,"logs_redacted":true}\n' \
+    "$branch" "$pr_number" "$current_branch" "$working_tree_clean" "$main_current" "$main_updated" "$local_branch_exists" "$remote_branch_exists" "$local_branch_merged" "$cleanup_ready" "$recommended_next_action"
+}
+
 autopilot_safe() {
   branch="$1"
   title="$2"
@@ -172,6 +244,9 @@ main() {
   branch="$(printf '%s' "$request" | json_get branch || true)"
   title="$(printf '%s' "$request" | json_get title || true)"
   body_file="$(printf '%s' "$request" | json_get body_file || true)"
+  mode="$(printf '%s' "$request" | json_get mode || true)"
+  pr_number="$(printf '%s' "$request" | json_get pr_number || true)"
+  confirmation="$(printf '%s' "$request" | json_get confirmation || true)"
 
   case "$action" in
     github_status)
@@ -186,6 +261,10 @@ main() {
       ;;
     github_create_pr)
       github_create_pr "$branch" "$title" "$body_file"
+      ;;
+    github_post_merge_close)
+      [ -z "$title$body_file" ] || die "github_post_merge_close does not accept title/body_file"
+      github_post_merge_close "$mode" "$branch" "$pr_number" "$confirmation"
       ;;
     autopilot_safe)
       autopilot_safe "$branch" "$title" "$body_file" "$message"
