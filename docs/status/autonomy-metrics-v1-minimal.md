@@ -65,6 +65,30 @@ No registrar eventos hasta cerrar este formato.
 
 Una vez cerrado, registrar un único evento por feature al cierre operativo del caso.
 
+## Primer registro recomendado
+
+Registrar al cerrar una feature.
+
+Usar solo los campos mínimos ya definidos.
+
+Ejemplo JSON mínimo:
+
+```json
+{
+  "timestamp": "ISO8601",
+  "feature_id": "PR-52",
+  "status": "DONE",
+  "pr_number": 52,
+  "albert_interventions_count": 1,
+  "ssh_manual_count": 0,
+  "approval_count": 0,
+  "execution_package_owner": "ChatGPT",
+  "autonomy_level": "L3"
+}
+```
+
+Esta métrica mide dependencia humana. No mide calidad ni valor de negocio.
+
 ## Qué NO mide
 
 - No mide calidad de features.
