@@ -44,6 +44,7 @@ Examples:
 
   tools/neodaemon_local_executor_v1.sh '{"action":"github_create_pr","branch":"docs/example","title":"docs: example","body_file":"/tmp/pr.md"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_close","mode":"check","branch":"docs/example","pr_number":"123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_close","mode":"list_candidates"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
 USAGE
@@ -137,7 +138,77 @@ github_post_merge_close() {
   pr_number="$3"
   confirmation="$4"
 
-  [ "$mode" = "check" ] || [ "$mode" = "cleanup" ] || die "invalid mode"
+  [ "$mode" = "check" ] || [ "$mode" = "cleanup" ] || [ "$mode" = "list_candidates" ] || die "invalid mode"
+
+  if [ "$mode" = "list_candidates" ]; then
+    python3 - <<'PYJSON'
+import json
+import subprocess
+
+def git_lines(*args):
+    result = subprocess.run(["git", *args], check=False, text=True, capture_output=True)
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+def git_ok(*args):
+    return subprocess.run(["git", *args], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+current = git_lines("branch", "--show-current")
+current_branch = current[0] if current else ""
+working_tree_clean = not git_lines("status", "--short")
+main_current = current_branch == "main"
+
+main_counts = git_lines("rev-list", "--left-right", "--count", "main...origin/main")
+main_updated = bool(main_counts and main_counts[0].split() == ["0", "0"])
+
+local_branches = [
+    b for b in git_lines("branch", "--format=%(refname:short)")
+    if b not in {"main", "master"}
+]
+
+remote_branches = []
+for branch in git_lines("branch", "-r", "--format=%(refname:short)"):
+    if branch == "origin/HEAD":
+        continue
+    if branch.startswith("origin/"):
+        branch = branch[len("origin/"):]
+    if branch not in {"main", "master"}:
+        remote_branches.append(branch)
+
+candidates = []
+for branch in sorted(set(local_branches) | set(remote_branches)):
+    local_exists = branch in local_branches
+    remote_exists = branch in remote_branches
+    local_merged = local_exists and git_ok("branch", "--merged", "main", "--list", branch)
+    cleanup_ready = bool(working_tree_clean and main_current and main_updated and local_merged)
+    candidates.append({
+        "branch": branch,
+        "local_branch_exists": local_exists,
+        "remote_branch_exists": remote_exists,
+        "local_branch_merged": local_merged,
+        "cleanup_ready": cleanup_ready,
+        "recommended_next_action": "cleanup allowed only with exact OK CLEANUP confirmation" if cleanup_ready else "manual review required",
+    })
+
+print(json.dumps({
+    "status": "OK",
+    "action": "github_post_merge_close",
+    "mode": "list_candidates",
+    "current_branch": current_branch,
+    "working_tree_clean": working_tree_clean,
+    "main_current": main_current,
+    "main_updated": main_updated,
+    "local_branches": local_branches,
+    "remote_branches": remote_branches,
+    "candidates": candidates,
+    "safe": True,
+    "logs_redacted": True,
+}, separators=(",", ":")))
+PYJSON
+    return 0
+  fi
+
   safe_branch "$branch"
   [ -n "$pr_number" ] || die "pr_number required"
   printf '%s' "$pr_number" | grep -Eq '^[0-9]+$' || die "invalid pr_number"
