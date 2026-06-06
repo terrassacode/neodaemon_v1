@@ -37,6 +37,19 @@ Reglas de interpretación:
 - Si falla cualquier check obligatorio, `failed_check` debe indicar el primer check fallido.
 - La acción recomendada nunca debe ejecutar limpieza automática.
 
+## Contexto squash/merge
+
+Después de un squash/merge, Git puede no marcar una rama como mergeada aunque el contenido ya esté integrado en `main`, porque el commit original de la rama no existe literalmente en `main`.
+
+Por tanto, V1 no debe confiar solo en `git branch --merged main`.
+
+Regla de seguridad:
+
+- si la rama no aparece como mergeada, comparar los archivos afectados contra `main`;
+- si no hay diferencias de contenido en los archivos afectados, marcar `contenido ya absorbido`;
+- si hay diferencias de contenido, marcar `requiere revisión`;
+- nunca borrar automáticamente en V1.
+
 ## Comandos permitidos read-only
 
 ```bash
