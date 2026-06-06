@@ -16,6 +16,31 @@ No aumenta permisos, no ejecuta acciones y no sustituye a NeoDaemon.
 2. NeoDaemon responde con propuesta, bloqueo o necesidad de aclaración. Operator puede hacer una única aclaración si falta información crítica.
 3. NeoDaemon confirma la decisión final. Operator devuelve a Albert una salida permitida.
 
+## Topología de conversación
+
+Flujo normal:
+
+```text
+Albert → NeoDaemon → Albert
+```
+
+Flujo con revisión crítica opcional:
+
+```text
+Albert → NeoDaemon → GPT crítico → NeoDaemon → Albert
+```
+
+NeoDaemon sigue siendo el interlocutor principal de Albert.
+
+GPT no es el router principal y no es un paso obligatorio. Cuando participa, actúa como revisor opcional para detectar:
+
+- puntos ciegos;
+- supuestos débiles;
+- mejoras;
+- riesgos.
+
+Albert no debe actuar como puente manual entre NeoDaemon y GPT. Si se usa revisión crítica, NeoDaemon debe integrar el resultado y devolver a Albert una respuesta final clara.
+
 ## Entradas mínimas
 
 - objetivo;
