@@ -4,6 +4,22 @@ OpenClaw NeoDaemon Skill is a minimal operating guide for agents and humans work
 
 NeoDaemon is the MAIN coordinator for Albert: it prepares bounded proposals, executes safe approved work, validates results, and reports back clearly.
 
+## Agent Entry Point
+
+For NeoDaemon/OpenClaw operational work, start with:
+
+- [`SKILL.md`](SKILL.md)
+
+For operator behavior, read:
+
+- [`references/gpt_operator_behavior.md`](references/gpt_operator_behavior.md)
+
+For medium/large projects, read:
+
+- [`references/project_delivery_protocol.md`](references/project_delivery_protocol.md)
+
+This skill summarizes and links operational guidance; it does not replace `docs/status`.
+
 ## When To Use It
 
 Use this skill when you need to:

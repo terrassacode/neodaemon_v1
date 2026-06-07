@@ -8,6 +8,15 @@ scope: Minimal documentation, routing, GitHub workflow, dashboard, RAG, and proj
 safety: Read-first; protected areas require explicit Albert confirmation.
 ```
 
+## Agent Entry Point
+
+For NeoDaemon/OpenClaw operational work, start with this `SKILL.md`.
+
+- Operator behavior: [gpt_operator_behavior.md](references/gpt_operator_behavior.md)
+- Medium/large projects: [project_delivery_protocol.md](references/project_delivery_protocol.md)
+
+This skill summarizes and links operational guidance; it does not replace `docs/status`.
+
 ## Purpose
 
 Use this skill to understand and operate NeoDaemon safely inside OpenClaw.
