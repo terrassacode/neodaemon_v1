@@ -83,6 +83,7 @@ Common capabilities:
 | Dashboard | [dashboard.md](references/dashboard.md) |
 | RAG | [rag.md](references/rag.md) |
 | Project Status | [project_state.md](references/project_state.md) |
+| GPT Operator | [gpt_operator_behavior.md](references/gpt_operator_behavior.md) |
 
 ## References
 
@@ -93,3 +94,4 @@ Common capabilities:
 - [Dashboard](references/dashboard.md)
 - [RAG](references/rag.md)
 - [Project State](references/project_state.md)
+- [GPT Operator Behavior](references/gpt_operator_behavior.md)
