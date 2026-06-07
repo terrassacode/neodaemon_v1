@@ -51,3 +51,6 @@ snapshots/
 browser/
 media/inbound/
 cron/runs/
+
+# Local runtime memory
+memory/
