@@ -521,7 +521,7 @@ PYSCAN
   printf '{"status":"OK","action":"autopilot_commit_tools_safe","phase":"validated","branch":"%s","file":"%s","diff_stat":"%s","safe":true,"logs_redacted":true}\n' \
     "$branch" "$file" "$diff_stat"
 
-  autopilot_commit "$branch" "$title" "$body_file" "$message"
+  OK_GITHUB=1 autopilot_commit "$branch" "$title" "$body_file" "$message"
 }
 
 main() {
