@@ -1,0 +1,78 @@
+{
+  "schema_version": "project-dashboard-state-v1",
+  "last_update": "2026-06-07",
+  "items": [
+    {
+      "id": "CLEANUP_HASH_CONFIRMATION",
+      "title": "Post-merge cleanup with short hash confirmation",
+      "status": "DONE",
+      "priority": "P1",
+      "health": "OK",
+      "last_update": "2026-06-07",
+      "next_action": "Use OK CLEANUP <short_hash> for eligible merged branches"
+    },
+    {
+      "id": "GITHUB_SSH_BUNKER_IA",
+      "title": "GitHub SSH remote on bunker-ia",
+      "status": "DONE",
+      "priority": "P1",
+      "health": "OK",
+      "last_update": "2026-06-07",
+      "next_action": "Keep using SSH remote for branch cleanup"
+    },
+    {
+      "id": "TELEGRAM_OK_CLEANUP_ROUTING",
+      "title": "Telegram /main routes OK CLEANUP hash before RAG",
+      "status": "DONE",
+      "priority": "P1",
+      "health": "WATCH",
+      "last_update": "2026-06-07",
+      "next_action": "Verify telegram_rag_bot.py is managed in a durable repo"
+    },
+    {
+      "id": "TOOLS_SAFE_AUTOPILOT_COMMIT",
+      "title": "Safe bridge route for tools/*.sh publication",
+      "status": "DONE",
+      "priority": "P1",
+      "health": "OK",
+      "last_update": "2026-06-07",
+      "next_action": "Use autopilot_commit_tools_safe for tools/*.sh changes"
+    },
+    {
+      "id": "POST_MERGE_CLEANUP_SQUASH_AWARE",
+      "title": "Squash-aware post-merge cleanup",
+      "status": "PLANNED",
+      "priority": "P2",
+      "health": "WATCH",
+      "last_update": "2026-06-07",
+      "next_action": "Design cleanup proof for squash-merged PRs"
+    },
+    {
+      "id": "OPERATOR_CHATGPT_PROTOCOL",
+      "title": "Operator ChatGPT protocol for structured requests",
+      "status": "DONE",
+      "priority": "P2",
+      "health": "OK",
+      "last_update": "2026-06-07",
+      "next_action": "Continue using OPERATOR_CHATGPT_V1 for proposals"
+    },
+    {
+      "id": "AUTONOMY_METRICS_JSONL",
+      "title": "Minimal autonomy metrics outside repo",
+      "status": "BLOCKED",
+      "priority": "P2",
+      "health": "BLOCKED",
+      "last_update": "2026-06-07",
+      "next_action": "Create allowlisted metrics write action or keep manual logging"
+    },
+    {
+      "id": "DASHBOARD_BASE_MINIMAL",
+      "title": "Manual JSON project dashboard base",
+      "status": "REVIEW",
+      "priority": "P2",
+      "health": "OK",
+      "last_update": "2026-06-07",
+      "next_action": "Review and merge this documentation/data PR"
+    }
+  ]
+}
