@@ -727,19 +727,33 @@ publish_doc_folder() {
   title="$2"
   message="$3"
   body="$4"
+  phase="validate_inputs"
 
   safe_branch "$branch"
   [ -n "$title" ] || die "title required"
   [ -n "$message" ] || die "message required"
   [ -n "$body" ] || die "body required"
 
+  phase="validate_branch"
   current_branch="$(git branch --show-current)"
   [ "$current_branch" = "$branch" ] || die "current branch must match branch"
 
-  body_file="$(mktemp /tmp/pr.publish-doc-folder.XXXXXX.md)"
-  printf '%s\n' "$body" > "$body_file"
+  phase="create_body_file"
+  body_file="/tmp/pr.publish-doc-folder.$$.$RANDOM.md"
+  : > "$body_file" || die "publish_doc_folder failed at phase=create_body_file exit_code=1"
+  chmod 600 "$body_file" || die "publish_doc_folder failed at phase=create_body_file exit_code=1"
+  printf '%s\n' "$body" > "$body_file" || die "publish_doc_folder failed at phase=create_body_file exit_code=1"
 
+  phase="run_publish_doc_folder"
+  set +e
   OK_GITHUB=1 tools/github_controlled_pr_assistant.sh publish-doc-folder "$branch" "$title" "$body_file" "$message"
+  rc="$?"
+  set -e
+
+  if [ "$rc" -ne 0 ]; then
+    printf '{"status":"BLOCKED","action":"publish_doc_folder","phase":"%s","exit_code":%s,"summary":"publish_doc_folder failed","safe":true,"logs_redacted":true}\n' "$phase" "$rc" >&2
+    return "$rc"
+  fi
 }
 
 main() {
