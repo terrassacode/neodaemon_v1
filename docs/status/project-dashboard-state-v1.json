@@ -68,11 +68,20 @@
     {
       "id": "DASHBOARD_BASE_MINIMAL",
       "title": "Manual JSON project dashboard base",
-      "status": "REVIEW",
+      "status": "DONE",
       "priority": "P2",
       "health": "OK",
       "last_update": "2026-06-07",
-      "next_action": "Review and merge this documentation/data PR"
+      "next_action": "Maintain this JSON manually until dashboard automation is approved"
+    },
+    {
+      "id": "GITHUB_REVIEWER_STATUS_EXPORT",
+      "title": "GitHub Reviewer Status Export",
+      "status": "IN_PROGRESS",
+      "priority": "P2",
+      "health": "WATCH",
+      "last_update": "2026-06-07",
+      "next_action": "Versionar si se confirma utilidad"
     }
   ]
 }
