@@ -37,6 +37,7 @@ Allowed actions:
   github_post_merge_cleanup_assistant
   autopilot_safe
   autopilot_commit
+  autopilot_commit_tools_safe
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -49,6 +50,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_post_merge_cleanup_assistant"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_tools_safe","branch":"feature/example","file":"tools/example.sh","title":"feat: example","message":"feat: example","body":"PR body"}'
 USAGE
 }
 
@@ -75,6 +77,26 @@ safe_body_file() {
       die "body_file must be /tmp/*.md"
       ;;
   esac
+}
+
+safe_tools_file() {
+  file="$1"
+
+  case "$file" in
+    tools/*.sh)
+      ;;
+    *)
+      die "file must be tools/*.sh"
+      ;;
+  esac
+
+  case "$file" in
+    *..*|*/../*|../*|/*|*~*|*^*|*:*|*\\*|*" "*)
+      die "unsafe file"
+      ;;
+  esac
+
+  [ -f "$file" ] || die "file not found"
 }
 
 github_status() {
@@ -414,6 +436,94 @@ autopilot_commit() {
   OK_GITHUB=1 tools/github_controlled_pr_assistant.sh autopilot-commit "$branch" "$title" "$body_file" "$message"
 }
 
+autopilot_commit_tools_safe() {
+  branch="$1"
+  file="$2"
+  title="$3"
+  message="$4"
+  body="$5"
+
+  safe_branch "$branch"
+  case "$branch" in
+    feature/*)
+      ;;
+    *)
+      die "branch must be feature/*"
+      ;;
+  esac
+
+  safe_tools_file "$file"
+  [ -n "$title" ] || die "title required"
+  [ -n "$message" ] || die "message required"
+  [ -n "$body" ] || die "body required"
+
+  current_branch="$(git branch --show-current)"
+  [ "$current_branch" = "$branch" ] || die "current branch must match branch"
+
+  set +e
+  STATUS_FILE="$file" python3 - <<'PYCHECK'
+import os
+import subprocess
+import sys
+
+target = os.environ["STATUS_FILE"]
+result = subprocess.run(["git", "status", "--porcelain"], check=False, text=True, capture_output=True)
+if result.returncode != 0:
+    sys.exit(1)
+paths = []
+for line in result.stdout.splitlines():
+    if not line:
+        continue
+    path = line[3:]
+    if " -> " in path:
+        path = path.split(" -> ", 1)[1]
+    paths.append(path)
+if not paths or sorted(set(paths)) != [target]:
+    sys.exit(2)
+PYCHECK
+  status_check_rc="$?"
+  set -e
+  case "$status_check_rc" in
+    0) ;;
+    2) die "working tree must contain only selected file" ;;
+    *) die "working tree validation failed" ;;
+  esac
+
+  bash -n "$file" || die "bash syntax failed"
+
+  set +e
+  SCAN_FILE="$file" python3 - <<'PYSCAN'
+import os
+import sys
+
+path = os.environ["SCAN_FILE"]
+text = open(path, "r", encoding="utf-8").read()
+forbidden = [
+    "git branch " + "-D",
+    "--" + "force",
+    "git " + "reset",
+    "git " + "stash",
+    "git " + "merge",
+    "git " + "rebase",
+]
+if any(item in text for item in forbidden):
+    sys.exit(1)
+PYSCAN
+  scan_rc="$?"
+  set -e
+  [ "$scan_rc" -eq 0 ] || die "forbidden command found"
+
+  diff_stat="$(git diff --stat -- "$file" | sed ':a;N;$!ba;s/"/\\"/g;s/\n/ | /g')"
+
+  body_file="$(mktemp /tmp/pr.autopilot-commit-tools-safe.XXXXXX.md)"
+  printf '%s\n' "$body" > "$body_file"
+
+  printf '{"status":"OK","action":"autopilot_commit_tools_safe","phase":"validated","branch":"%s","file":"%s","diff_stat":"%s","safe":true,"logs_redacted":true}\n' \
+    "$branch" "$file" "$diff_stat"
+
+  autopilot_commit "$branch" "$title" "$body_file" "$message"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -428,9 +538,12 @@ main() {
   branch="$(printf '%s' "$request" | json_get branch || true)"
   title="$(printf '%s' "$request" | json_get title || true)"
   body_file="$(printf '%s' "$request" | json_get body_file || true)"
+  file="$(printf '%s' "$request" | json_get file || true)"
   mode="$(printf '%s' "$request" | json_get mode || true)"
   pr_number="$(printf '%s' "$request" | json_get pr_number || true)"
   confirmation="$(printf '%s' "$request" | json_get confirmation || true)"
+  message="$(printf '%s' "$request" | json_get message || true)"
+  body="$(printf '%s' "$request" | json_get body || true)"
 
   case "$action" in
     github_status)
@@ -459,6 +572,10 @@ main() {
       ;;
     autopilot_commit)
       autopilot_commit "$branch" "$title" "$body_file" "$message"
+      ;;
+    autopilot_commit_tools_safe)
+      [ -z "$body_file$mode$pr_number$confirmation" ] || die "autopilot_commit_tools_safe does not accept body_file/mode/pr_number/confirmation"
+      autopilot_commit_tools_safe "$branch" "$file" "$title" "$message" "$body"
       ;;
     *)
       die "unknown action"
