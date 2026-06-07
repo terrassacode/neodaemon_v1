@@ -263,6 +263,47 @@ validate_docs_publish_file() {
   esac
 }
 
+require_safe_doc_folder_path() {
+  file="$1"
+
+  case "$file" in
+    OpenClaw-NeoDaemon-Skill/references/*/*.md)
+      die "subfolders under OpenClaw-NeoDaemon-Skill/references are not allowed: $file"
+      ;;
+    OpenClaw-NeoDaemon-Skill/SKILL.md|OpenClaw-NeoDaemon-Skill/references/*.md)
+      ;;
+    *)
+      die "only OpenClaw-NeoDaemon-Skill/SKILL.md and OpenClaw-NeoDaemon-Skill/references/*.md are allowed: $file"
+      ;;
+  esac
+
+  case "$file" in
+    *" "*|*..*|*/../*|../*|/*|*~*|*^*|*:*|*\\*)
+      die "unsafe doc folder path: $file"
+      ;;
+  esac
+
+  printf '%s' "$file" | grep -Eq '^[A-Za-z0-9._/-]+$' || die "invalid doc folder path: $file"
+  doc_folder_blocked_pattern="$(printf '%s' 'to' 'ken|sec' 'ret|oa' 'uth|pass' 'word|cred' 'ential|k' 'ey|au' 'th')"
+  printf '%s' "$file" | grep -Eiq "$doc_folder_blocked_pattern" && die "protected doc folder path blocked: $file"
+}
+
+validate_doc_folder_publish_file() {
+  file="$1"
+
+  require_safe_doc_folder_path "$file"
+  require_not_protected_path "$file"
+
+  case "$file" in
+    *.md)
+      test -f "$file" || die "doc folder file not found: $file"
+      ;;
+    *)
+      die "only markdown files are allowed in doc folder publish: $file"
+      ;;
+  esac
+}
+
 prepare() {
   branch="$1"
   file="$2"
@@ -397,6 +438,42 @@ docs_autopilot_commit() {
   OK_GITHUB=1 autopilot_commit "$branch" "$title" "$body_file" "$message"
 }
 
+publish_doc_folder() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  require_safe_branch_name "$branch"
+  safe_body_file "$body_file"
+
+  current="$(git branch --show-current)"
+  [ "$current" = "$branch" ] || die "current branch must match publish-doc-folder branch"
+
+  changed="$(git status --porcelain | awk '{print $2}')"
+  [ -n "$changed" ] || die "no changed files detected"
+
+  for file in $changed; do
+    validate_doc_folder_publish_file "$file"
+  done
+
+  append_autopilot_decision "$branch" "ALLOWED" "doc_folder_publish_trust_zone_ok"
+
+  git diff --stat
+  git add -- $changed
+  git commit -m "$message"
+
+  OK_GITHUB=1 publish "$branch"
+  OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
+
+  echo "FEATURE_DOC_FOLDER_PUBLISH_DONE"
+  echo "branch: $branch"
+  echo "commit: $(git log --oneline -1)"
+  echo "ssh_manual_count: 1"
+  echo "approval_count: 0"
+  echo "human_intervention_count: 1"
+}
+
 publish() {
   branch="$1"
 
@@ -459,6 +536,10 @@ case "$cmd" in
   docs-autopilot-commit)
     [ "$#" -eq 5 ] || die "docs-autopilot-commit requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
     docs_autopilot_commit "$2" "$3" "$4" "$5"
+    ;;
+  publish-doc-folder)
+    [ "$#" -eq 5 ] || die "publish-doc-folder requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
+    publish_doc_folder "$2" "$3" "$4" "$5"
     ;;
   -h|--help|help|"")
     usage
