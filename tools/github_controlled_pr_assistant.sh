@@ -270,10 +270,15 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/references/*/*.md)
       die "subfolders under OpenClaw-NeoDaemon-Skill/references are not allowed: $file"
       ;;
-    OpenClaw-NeoDaemon-Skill/SKILL.md|OpenClaw-NeoDaemon-Skill/references/*.md)
+    OpenClaw-NeoDaemon-Skill/references/*.md)
+      ;;
+    OpenClaw-NeoDaemon-Skill/*/*.md)
+      die "subfolders other than OpenClaw-NeoDaemon-Skill/references/*.md are not allowed: $file"
+      ;;
+    OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/SKILL.md and OpenClaw-NeoDaemon-Skill/references/*.md are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md and OpenClaw-NeoDaemon-Skill/references/*.md are allowed: $file"
       ;;
   esac
 
