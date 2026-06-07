@@ -7,6 +7,7 @@ GITHUB_CONTROLLED_PR_ASSISTANT_V1
 
 Usage:
   tools/github_controlled_pr_assistant.sh prepare <branch-name> <docs/path/file.md> <commit-message>
+  tools/github_controlled_pr_assistant.sh docs-autopilot-commit <branch-name> <pr-title> <pr-body-file> <commit-message>
   tools/github_controlled_pr_assistant.sh publish <branch-name>
 
 V1 safety rules:
@@ -216,6 +217,52 @@ require_single_changed_file() {
   }
 }
 
+is_allowed_docs_publish_path() {
+  case "$1" in
+    docs/*.md|docs/*/*.md|docs/*/*/*.md|docs/*/*/*/*.md|docs/*.json|docs/*/*.json|docs/*/*/*.json|docs/*/*/*/*.json)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+require_safe_docs_publish_path() {
+  file="$1"
+
+  is_allowed_docs_publish_path "$file" || die "only docs/**/*.md and docs/**/*.json files are allowed: $file"
+
+  case "$file" in
+    *" "*|*..*|*/../*|../*|/*|*~*|*^*|*:*|*\\*)
+      die "unsafe docs path: $file"
+      ;;
+  esac
+
+  printf '%s' "$file" | grep -Eq '^[A-Za-z0-9._/-]+$' || die "invalid docs path: $file"
+  docs_blocked_pattern="$(printf '%s' 'to' 'ken|sec' 'ret|oa' 'uth|pass' 'word|cred' 'ential|k' 'ey|au' 'th')"
+  printf '%s' "$file" | grep -Eiq "$docs_blocked_pattern" && die "protected docs path blocked: $file"
+}
+
+validate_docs_publish_file() {
+  file="$1"
+
+  require_safe_docs_publish_path "$file"
+  require_not_protected_path "$file"
+
+  case "$file" in
+    *.json)
+      python3 -m json.tool "$file" >/dev/null
+      ;;
+    *.md)
+      test -f "$file"
+      ;;
+    *)
+      die "unsupported docs file type: $file"
+      ;;
+  esac
+}
+
 prepare() {
   branch="$1"
   file="$2"
@@ -325,6 +372,31 @@ autopilot_commit() {
   echo "human_intervention_count: 1"
 }
 
+docs_autopilot_commit() {
+  branch="$1"
+  title="$2"
+  body_file="$3"
+  message="$4"
+
+  require_safe_branch_name "$branch"
+  safe_body_file "$body_file"
+
+  current="$(git branch --show-current)"
+  [ "$current" = "$branch" ] || die "current branch must match docs autopilot branch"
+
+  changed="$(git status --porcelain | awk '{print $2}')"
+  [ -n "$changed" ] || die "no changed files detected"
+
+  for file in $changed; do
+    validate_docs_publish_file "$file"
+  done
+
+  append_autopilot_decision "$branch" "ALLOWED" "docs_publish_trust_zone_ok"
+
+  git diff --stat
+  OK_GITHUB=1 autopilot_commit "$branch" "$title" "$body_file" "$message"
+}
+
 publish() {
   branch="$1"
 
@@ -384,6 +456,10 @@ case "$cmd" in
     [ "$#" -eq 5 ] || die "autopilot-commit requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
     autopilot_commit "$2" "$3" "$4" "$5"
     ;;
+  docs-autopilot-commit)
+    [ "$#" -eq 5 ] || die "docs-autopilot-commit requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
+    docs_autopilot_commit "$2" "$3" "$4" "$5"
+    ;;
   -h|--help|help|"")
     usage
     ;;
@@ -391,4 +467,3 @@ case "$cmd" in
     die "unknown command: $cmd"
     ;;
 esac
-
