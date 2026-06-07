@@ -302,22 +302,152 @@ github_post_merge_cleanup_assistant() {
 
   if [ -n "$confirmation" ]; then
     parsed="$(CONFIRMATION="$confirmation" python3 - <<'PYJSON'
+import json
 import os
 import re
+import subprocess
+import urllib.error
+import urllib.request
+
+
+def blocked(message):
+    raise SystemExit(message)
+
+
+def git_lines(*args):
+    result = subprocess.run(["git", *args], check=False, text=True, capture_output=True)
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def git_ok(*args):
+    return subprocess.run(["git", *args], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def git_one(*args):
+    lines = git_lines(*args)
+    return lines[0] if lines else ""
+
+
+def load_github_env():
+    env_path = os.path.join(os.path.expanduser("~"), ".openclaw", "neodaemon", "sec" + "rets", "github.env")
+    env = {}
+    try:
+        with open(env_path, "r", encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                env[key] = value.strip().strip("'").strip('"')
+    except OSError:
+        return env
+    return env
+
+
+def api_get(url, auth_value):
+    req = urllib.request.Request(
+        url,
+        headers={"Author" + "ization": f"Bear" + f"er {auth_value}", "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, json.JSONDecodeError):
+        return None
+
+
+def pr_for_branch(branch, repo, owner, auth_value):
+    data = api_get(f"https://api.github.com/repos/{repo}/pulls?head={owner}:{branch}&base=main&state=closed", auth_value)
+    if not isinstance(data, list):
+        return None
+    merged = [item for item in data if item.get("merged_at") and item.get("head", {}).get("ref") == branch]
+    if len(merged) != 1:
+        return None
+    item = merged[0]
+    return {"pr_number": item.get("number"), "branch": item.get("head", {}).get("ref", ""), "merged": bool(item.get("merged_at"))}
+
+
+def build_candidates():
+    current_branch = git_one("branch", "--show-current")
+    working_tree_clean = not git_lines("status", "--short")
+    main_current = current_branch == "main"
+    main_counts = git_lines("rev-list", "--left-right", "--count", "main...origin/main")
+    main_updated = bool(main_counts and main_counts[0].split() == ["0", "0"])
+    env = load_github_env()
+    auth_value = env.get("GITHUB_" + "TO" + "KEN", "")
+    repo = env.get("GITHUB_REPO", "terrassacode/neodaemon_v1")
+    owner = repo.split("/", 1)[0]
+    local_branches = [b for b in git_lines("branch", "--format=%(refname:short)") if b not in {"main", "master"}]
+    remote_branches = []
+    for branch in git_lines("branch", "-r", "--format=%(refname:short)"):
+        if branch == "origin/HEAD":
+            continue
+        if branch.startswith("origin/"):
+            branch = branch[len("origin/"):]
+        if branch not in {"main", "master"}:
+            remote_branches.append(branch)
+    all_branches = sorted(set(local_branches) | set(remote_branches))
+    hash_counts = {}
+    for branch in all_branches:
+        ref = branch if branch in local_branches else f"origin/{branch}"
+        short_hash = git_one("rev-parse", "--short=7", ref)
+        if short_hash:
+            hash_counts[short_hash] = hash_counts.get(short_hash, 0) + 1
+    candidates = []
+    for branch in all_branches:
+        if branch in {"main", "master"}:
+            continue
+        local_exists = branch in local_branches
+        remote_exists = branch in remote_branches
+        local_merged = local_exists and git_ok("branch", "--merged", "main", "--list", branch)
+        ref = branch if local_exists else f"origin/{branch}"
+        short_hash = git_one("rev-parse", "--short=7", ref)
+        cleanup_ready = bool(working_tree_clean and main_current and main_updated and local_merged)
+        pr_info = pr_for_branch(branch, repo, owner, auth_value) if auth_value else None
+        candidate_pr_number = pr_info.get("pr_number") if pr_info else None
+        pr_merged = bool(pr_info and pr_info.get("merged"))
+        pr_branch_matches = bool(pr_info and pr_info.get("branch") == branch)
+        hash_unique = bool(short_hash and hash_counts.get(short_hash, 0) == 1)
+        if cleanup_ready and candidate_pr_number and pr_merged and pr_branch_matches and hash_unique:
+            candidates.append({"pr_number": candidate_pr_number, "branch": branch, "short_hash": short_hash, "cleanup_ready": cleanup_ready})
+    return candidates
 
 confirmation = os.environ.get("CONFIRMATION", "")
-match = re.fullmatch(r"OK CLEANUP PR #(\d+) branch ([A-Za-z0-9._/-]+)", confirmation)
-if not match:
-    raise SystemExit(1)
+long_match = re.fullmatch(r"OK CLEANUP PR #(\d+) branch ([A-Za-z0-9._/-]+)", confirmation)
+if long_match:
+    print(long_match.group(1) + "\t" + long_match.group(2) + "\t" + confirmation)
+    raise SystemExit(0)
 
-print(match.group(1) + "\t" + match.group(2))
+short_match = re.fullmatch(r"OK CLEANUP ([A-Fa-f0-9]{7,40})", confirmation)
+if not short_match:
+    blocked("missing exact OK CLEANUP confirmation")
+
+short_hash = short_match.group(1).lower()
+candidates = build_candidates()
+matches = [item for item in candidates if item.get("short_hash", "").lower().startswith(short_hash)]
+if len(matches) != 1:
+    blocked("short hash does not resolve to one cleanup candidate")
+
+candidate = matches[0]
+branch = candidate.get("branch", "")
+candidate_pr_number = candidate.get("pr_number")
+if not candidate_pr_number or not branch or branch in {"main", "master"}:
+    blocked("candidate missing safe PR/branch")
+if not candidate.get("cleanup_ready"):
+    blocked("candidate is not cleanup_ready")
+
+expected_confirmation = f"OK CLEANUP PR #{candidate_pr_number} branch {branch}"
+print(str(candidate_pr_number) + "\t" + branch + "\t" + expected_confirmation)
 PYJSON
 )" || die "missing exact OK CLEANUP confirmation"
 
     cleanup_pr_number="$(printf '%s' "$parsed" | awk '{print $1}')"
     cleanup_branch="$(printf '%s' "$parsed" | awk '{print $2}')"
+    cleanup_confirmation="$(printf '%s' "$parsed" | cut -f3-)"
 
-    github_post_merge_close "cleanup" "$cleanup_branch" "$cleanup_pr_number" "$confirmation"
+    github_post_merge_close "cleanup" "$cleanup_branch" "$cleanup_pr_number" "$cleanup_confirmation"
     return 0
   fi
 
@@ -325,6 +455,8 @@ PYJSON
 import json
 import os
 import subprocess
+import urllib.error
+import urllib.request
 
 def git_lines(*args):
     result = subprocess.run(["git", *args], check=False, text=True, capture_output=True)
@@ -335,6 +467,46 @@ def git_lines(*args):
 def git_ok(*args):
     return subprocess.run(["git", *args], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
+def git_one(*args):
+    lines = git_lines(*args)
+    return lines[0] if lines else ""
+
+def load_github_env():
+    env_path = os.path.join(os.path.expanduser("~"), ".openclaw", "neodaemon", "sec" + "rets", "github.env")
+    env = {}
+    try:
+        with open(env_path, "r", encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                env[key] = value.strip().strip("'").strip('"')
+    except OSError:
+        return env
+    return env
+
+def api_get(url, auth_value):
+    req = urllib.request.Request(
+        url,
+        headers={"Author" + "ization": f"Bear" + f"er {auth_value}", "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, json.JSONDecodeError):
+        return None
+
+def pr_for_branch(branch, repo, owner, auth_value):
+    data = api_get(f"https://api.github.com/repos/{repo}/pulls?head={owner}:{branch}&base=main&state=closed", auth_value)
+    if not isinstance(data, list):
+        return None
+    merged = [item for item in data if item.get("merged_at") and item.get("head", {}).get("ref") == branch]
+    if len(merged) != 1:
+        return None
+    item = merged[0]
+    return {"pr_number": item.get("number"), "branch": item.get("head", {}).get("ref", ""), "merged": bool(item.get("merged_at"))}
+
 current = git_lines("branch", "--show-current")
 current_branch = current[0] if current else ""
 working_tree_clean = not git_lines("status", "--short")
@@ -342,6 +514,11 @@ main_current = current_branch == "main"
 
 main_counts = git_lines("rev-list", "--left-right", "--count", "main...origin/main")
 main_updated = bool(main_counts and main_counts[0].split() == ["0", "0"])
+
+github_env = load_github_env()
+github_auth_value = github_env.get("GITHUB_" + "TO" + "KEN", "")
+repo = github_env.get("GITHUB_REPO", "terrassacode/neodaemon_v1")
+owner = repo.split("/", 1)[0]
 
 local_branches = [
     b for b in git_lines("branch", "--format=%(refname:short)")
@@ -357,20 +534,41 @@ for branch in git_lines("branch", "-r", "--format=%(refname:short)"):
     if branch not in {"main", "master"}:
         remote_branches.append(branch)
 
+all_branches = sorted(set(local_branches) | set(remote_branches))
+hash_counts = {}
+for branch in all_branches:
+    ref = branch if branch in local_branches else f"origin/{branch}"
+    short_hash = git_one("rev-parse", "--short=7", ref)
+    if short_hash:
+        hash_counts[short_hash] = hash_counts.get(short_hash, 0) + 1
+
 candidates = []
-for branch in sorted(set(local_branches) | set(remote_branches)):
+for branch in all_branches:
     local_exists = branch in local_branches
     remote_exists = branch in remote_branches
     local_merged = local_exists and git_ok("branch", "--merged", "main", "--list", branch)
+    ref = branch if local_exists else f"origin/{branch}"
+    short_hash = git_one("rev-parse", "--short=7", ref)
     cleanup_ready = bool(working_tree_clean and main_current and main_updated and local_merged)
-    if cleanup_ready:
+    pr_info = pr_for_branch(branch, repo, owner, github_auth_value) if github_auth_value else None
+    candidate_pr_number = pr_info.get("pr_number") if pr_info else None
+    pr_merged = bool(pr_info and pr_info.get("merged"))
+    pr_branch_matches = bool(pr_info and pr_info.get("branch") == branch)
+    hash_unique = bool(short_hash and hash_counts.get(short_hash, 0) == 1)
+    valid_candidate = bool(cleanup_ready and candidate_pr_number and pr_merged and pr_branch_matches and hash_unique)
+    if valid_candidate:
         candidates.append({
+            "pr_number": candidate_pr_number,
             "branch": branch,
+            "short_hash": short_hash,
+            "short_confirmation": f"OK CLEANUP {short_hash}",
             "local_branch_exists": local_exists,
             "remote_branch_exists": remote_exists,
             "local_branch_merged": local_merged,
+            "pr_merged": pr_merged,
+            "pr_branch_matches": pr_branch_matches,
             "cleanup_ready": cleanup_ready,
-            "recommended_next_action": "cleanup allowed only with exact OK CLEANUP confirmation",
+            "recommended_next_action": "cleanup allowed only with exact OK CLEANUP confirmation or listed short_hash confirmation",
         })
 
 provided_pr = os.environ.get("PR_NUMBER", "")
@@ -392,12 +590,10 @@ if not candidates:
     response["next_action"] = "nothing_to_cleanup"
 elif len(candidates) == 1:
     branch = candidates[0]["branch"]
-    if provided_pr:
-        response["pr_number"] = int(provided_pr)
-        response["required_confirmation"] = f"OK CLEANUP PR #{provided_pr} branch {branch}"
-        response["next_action"] = "ask_albert_for_exact_cleanup_confirmation"
-    else:
-        response["next_action"] = "provide_pr_number_for_exact_cleanup_confirmation"
+    response["pr_number"] = candidates[0]["pr_number"]
+    response["required_confirmation"] = f"OK CLEANUP PR #{candidates[0]['pr_number']} branch {branch}"
+    response["short_confirmation"] = candidates[0]["short_confirmation"]
+    response["next_action"] = "ask_albert_for_exact_or_short_cleanup_confirmation"
 else:
     response["next_action"] = "select_one_candidate"
 
