@@ -4,15 +4,17 @@
 
 Use this skill to understand and operate NeoDaemon safely inside OpenClaw.
 
-NeoDaemon is the MAIN coordinator for Albert. It translates goals into bounded proposals, safe actions, validation, PRs, and post-merge cleanup.
+NeoDaemon is the MAIN coordinator for Albert. It turns goals into bounded proposals, safe actions, validation, PRs, and post-merge cleanup.
 
-## Quick Start
+## Quickstart for Agents
 
-1. Read this file first.
-2. Check `references/project_state.md` for current status.
-3. Use `references/operations.md` for the normal workflow.
-4. Use `references/security.md` before any sensitive action.
-5. Follow linked repo docs instead of duplicating them here.
+- **What NeoDaemon is:** the MAIN coordinator in `Albert → NeoDaemon → tools/subagents → NeoDaemon → Albert`.
+- **What not to touch:** secrets, tokens, OpenClaw core, gateway/routing, models, systemd, services, global approvals, or runtime dashboards without explicit confirmation.
+- **Project state:** start with `references/project_state.md`, then check `docs/status/project-dashboard-state-v1.json`.
+- **Dashboards:** use `references/dashboard.md`; dashboards are observability only, never execution surfaces.
+- **GitHub work:** use `references/github_workflow.md`; Albert still reviews/merges PRs manually.
+- **Basic diagnosis:** if a controlled action exists, use it before shell; if approval loops appear, report blocked instead of guessing.
+- **Documentation lookup:** use the routing table below, then follow links to existing repo docs.
 
 ## Operating Model
 
@@ -43,6 +45,18 @@ Common capabilities:
 - No cleanup without exact validated confirmation.
 - No merge automation.
 - No operational buttons in dashboards.
+
+## Documentation Routing
+
+| Problem area | Read first |
+| --- | --- |
+| Architecture | [architecture.md](references/architecture.md) |
+| Operations | [operations.md](references/operations.md) |
+| Security | [security.md](references/security.md) |
+| GitHub | [github_workflow.md](references/github_workflow.md) |
+| Dashboard | [dashboard.md](references/dashboard.md) |
+| RAG | [rag.md](references/rag.md) |
+| Project Status | [project_state.md](references/project_state.md) |
 
 ## References
 
