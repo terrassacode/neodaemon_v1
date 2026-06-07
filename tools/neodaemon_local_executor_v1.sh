@@ -38,6 +38,7 @@ Allowed actions:
   autopilot_safe
   autopilot_commit
   autopilot_commit_tools_safe
+  publish_doc_folder
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -51,6 +52,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_safe","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_tools_safe","branch":"feature/example","file":"tools/example.sh","title":"feat: example","message":"feat: example","body":"PR body"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"publish_doc_folder","branch":"docs/example","title":"docs: example","message":"docs: example","body":"PR body"}'
 USAGE
 }
 
@@ -720,6 +722,26 @@ PYSCAN
   OK_GITHUB=1 autopilot_commit "$branch" "$title" "$body_file" "$message"
 }
 
+publish_doc_folder() {
+  branch="$1"
+  title="$2"
+  message="$3"
+  body="$4"
+
+  safe_branch "$branch"
+  [ -n "$title" ] || die "title required"
+  [ -n "$message" ] || die "message required"
+  [ -n "$body" ] || die "body required"
+
+  current_branch="$(git branch --show-current)"
+  [ "$current_branch" = "$branch" ] || die "current branch must match branch"
+
+  body_file="$(mktemp /tmp/pr.publish-doc-folder.XXXXXX.md)"
+  printf '%s\n' "$body" > "$body_file"
+
+  OK_GITHUB=1 tools/github_controlled_pr_assistant.sh publish-doc-folder "$branch" "$title" "$body_file" "$message"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -772,6 +794,10 @@ main() {
     autopilot_commit_tools_safe)
       [ -z "$body_file$mode$pr_number$confirmation" ] || die "autopilot_commit_tools_safe does not accept body_file/mode/pr_number/confirmation"
       autopilot_commit_tools_safe "$branch" "$file" "$title" "$message" "$body"
+      ;;
+    publish_doc_folder)
+      [ -z "$file$body_file$mode$pr_number$confirmation" ] || die "publish_doc_folder does not accept file/body_file/mode/pr_number/confirmation"
+      publish_doc_folder "$branch" "$title" "$message" "$body"
       ;;
     *)
       die "unknown action"
