@@ -268,6 +268,10 @@ require_safe_doc_folder_path() {
   file="$1"
 
   case "$file" in
+    task_manager/README.md)
+      ;;
+    task_manager/projects/neodaemon.json)
+      ;;
     OpenClaw-NeoDaemon-Skill/references/*/*.md)
       die "subfolders under OpenClaw-NeoDaemon-Skill/references are not allowed: $file"
       ;;
@@ -279,7 +283,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md and OpenClaw-NeoDaemon-Skill/references/*.md are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, and task_manager/projects/neodaemon.json are allowed: $file"
       ;;
   esac
 
@@ -303,6 +307,9 @@ validate_doc_folder_publish_file() {
   case "$file" in
     *.md)
       test -f "$file" || die "doc folder file not found: $file"
+      ;;
+    task_manager/projects/neodaemon.json)
+      python3 -m json.tool "$file" >/dev/null
       ;;
     *)
       die "only markdown files are allowed in doc folder publish: $file"
