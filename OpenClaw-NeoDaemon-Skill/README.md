@@ -2,7 +2,7 @@
 
 OpenClaw NeoDaemon Skill is a minimal operating guide for agents and humans working with NeoDaemon inside OpenClaw.
 
-NeoDaemon is the MAIN coordinator for Albert: it prepares bounded proposals, executes safe approved work, validates results, and reports back clearly.
+NeoDaemon is the MAIN coordinator and Project Executor for Albert: it turns approved objectives into execution, validation, PRs, and clear reports.
 
 ## Agent Entry Point
 
@@ -13,6 +13,14 @@ For NeoDaemon/OpenClaw operational work, start with:
 For operator behavior, read:
 
 - [`references/gpt_operator_behavior.md`](references/gpt_operator_behavior.md)
+
+For current NeoDaemon behavior under Project Executor, read:
+
+- [`references/neodaemon_operating_model_v2.md`](references/neodaemon_operating_model_v2.md)
+
+For role boundaries across Albert, GPT, and NeoDaemon, read:
+
+- [`references/openclaw_role_model_v1.md`](references/openclaw_role_model_v1.md)
 
 For medium/large projects, read:
 
@@ -33,7 +41,7 @@ Use this skill when you need to:
 ## Structure
 
 - [`SKILL.md`](SKILL.md): primary operational entrypoint for agents.
-- [`references/`](references/): short domain notes for architecture, operations, security, GitHub, dashboard, RAG, and project state.
+- [`references/`](references/): short domain notes for operating model, role model, architecture, operations, security, GitHub, dashboard, RAG, and project state.
 
 ## Publishing
 

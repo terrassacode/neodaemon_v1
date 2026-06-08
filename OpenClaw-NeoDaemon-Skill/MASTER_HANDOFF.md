@@ -204,6 +204,8 @@ Important references:
 - `references/gpt_operator_behavior.md`
 - `references/gpt_operator_workflow.md`
 - `references/neodaemon_operating_model_v2.md`
+- `references/openclaw_role_model_v1.md`
+- `references/project_executor_documentation_perimeter.md`
 - `references/project_delivery_protocol.md`
 - `references/github_workflow.md`
 - `references/security.md`
@@ -216,6 +218,7 @@ The Skill summarizes and links. It should not become a duplicate of every status
 Verified current state from recent operational work:
 
 - `references/neodaemon_operating_model_v2.md` is the main behavioral reference for Project Executor operations.
+- `references/openclaw_role_model_v1.md` is the main reference for Albert/GPT/NeoDaemon role boundaries.
 - `publish_doc_folder` can publish allowlisted Skill Markdown as a compatibility route.
 - `OK CLEANUP <hash>` remains the desired official cleanup UX.
 - MAIN/RAG decoupling is documented.
@@ -279,6 +282,8 @@ Then inspect as needed:
 - `OpenClaw-NeoDaemon-Skill/references/gpt_operator_behavior.md`
 - `OpenClaw-NeoDaemon-Skill/references/gpt_operator_workflow.md`
 - `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`
+- `OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md`
+- `OpenClaw-NeoDaemon-Skill/references/project_executor_documentation_perimeter.md`
 - `OpenClaw-NeoDaemon-Skill/references/project_delivery_protocol.md`
 - `OpenClaw-NeoDaemon-Skill/references/github_workflow.md`
 - `OpenClaw-NeoDaemon-Skill/CHANGELOG.md`
@@ -291,14 +296,15 @@ Then inspect as needed:
 1. Read `OpenClaw-NeoDaemon-Skill/SKILL.md`.
 2. Read this `MASTER_HANDOFF.md`.
 3. Read `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`.
-4. Treat live state as unverified until inspected.
-5. For non-trivial work, ask NeoDaemon for `FEATURE_PROPOSAL`.
-6. Do not recommend `OK FEATURE` until you perform critical review.
-7. After an objective is approved, assume normal execution inside the approved perimeter is allowed unless a Protected Zone, ambiguity, external action, safety constraint, or materially different direction appears.
-8. Keep Albert's official workflow intact:
+4. Read `OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md`.
+5. Treat live state as unverified until inspected.
+6. For non-trivial work, ask NeoDaemon for `FEATURE_PROPOSAL`.
+7. Do not recommend `OK FEATURE` until you perform critical review.
+8. After an objective is approved, assume normal execution inside the approved perimeter is allowed unless a Protected Zone, ambiguity, external action, safety constraint, or materially different direction appears.
+9. Keep Albert's official workflow intact:
 
 ```text
 FEATURE_PROPOSAL → OK FEATURE → execution → validation → PR → manual merge → OK CLEANUP <hash>
 ```
 
-9. If blocked, state the exact blocker and next minimal action.
+10. If blocked, state the exact blocker and next minimal action.
