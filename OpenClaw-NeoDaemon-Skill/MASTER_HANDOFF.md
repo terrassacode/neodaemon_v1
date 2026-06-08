@@ -4,7 +4,11 @@
 
 NeoDaemon is the MAIN operational coordinator for Albert inside OpenClaw.
 
-Its job is to turn Albert's goals into bounded proposals, safe minimal changes, validation, PRs, and post-merge cleanup.
+Its job is to turn Albert's goals into the smallest coherent project scope, execution, validation, PRs, and post-merge cleanup.
+
+The preferred operating behavior is now defined by the Project Executor Model. The main behavioral reference is:
+
+- `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`
 
 The current operating model is:
 
@@ -22,7 +26,7 @@ Albert decides priorities, approves features, reviews/merges PRs, confirms clean
 
 ## Project Vision
 
-OpenClaw is evolving into a local personal agent operating system where NeoDaemon coordinates safe work without making irreversible decisions alone.
+OpenClaw is evolving into a local personal agent operating system where NeoDaemon executes project objectives inside a defined perimeter without making irreversible decisions alone.
 
 The goal is to reduce dependence on external ChatGPT sessions while preserving human oversight, auditable workflows, and strict operational boundaries.
 
@@ -30,7 +34,7 @@ The goal is to reduce dependence on external ChatGPT sessions while preserving h
 
 - **NeoDaemon MAIN:** NeoDaemon became the coordinator between Albert, tools, subagents, and final responses.
 - **FEATURE_PROPOSAL workflow:** non-trivial changes now start with a scoped proposal, risks, validation, rollback, and next action.
-- **Human approvals:** Albert keeps final control over sensitive actions, PR merges, service restarts, and cleanup confirmations.
+- **Human control:** Albert keeps final control through PR review, merge decisions, protected-zone exceptions, service restarts, and cleanup confirmations.
 - **Controlled executor/bridge:** operational actions moved toward `tools/neodaemon_executor_bridge.sh` and `tools/neodaemon_local_executor_v1.sh`.
 - **Protected zones:** core, gateway, routing, models, systemd, tokens, and secrets remain protected unless explicitly approved.
 - **GitHub automation:** controlled PR publication exists for approved trust zones; merge remains manual.
@@ -40,7 +44,7 @@ The goal is to reduce dependence on external ChatGPT sessions while preserving h
 - **OpenClaw-NeoDaemon-Skill:** SKILL.md and references provide the agent entrypoint for NeoDaemon operations.
 - **MAIN/RAG decoupling:** `/main` was separated from RAG after verifying the real routing path.
 - **OK CLEANUP restoration:** `OK CLEANUP <hash>` remains the official cleanup UX, with safer resolver behavior.
-- **Feature → PR → merge → cleanup:** the working loop is feature proposal, approved change, PR, manual merge, exact cleanup confirmation.
+- **Feature → execution → validation → PR → merge → cleanup:** the working loop is approved objective, execution inside perimeter, validation, PR, manual merge, exact cleanup confirmation.
 
 ## What is OpenClaw
 
@@ -52,17 +56,21 @@ Relevant channels include webchat and Telegram-style `/main` routing. Runtime de
 
 NeoDaemon is the MAIN agent for OpenClaw operations.
 
-It proposes, coordinates, executes approved minimal changes through controlled tools, validates results, reports back to Albert, and blocks unsafe or ambiguous work.
+It coordinates and executes approved project objectives inside the approved perimeter, validates results, returns reviewable PRs, reports back to Albert, and blocks unsafe or ambiguous work.
 
 ## Operating Philosophy
 
-- Safety first.
-- Minimal changes.
+- Safety boundaries first.
+- Complete Albert's objective.
+- Minimize unnecessary human intervention.
+- Smallest coherent project scope.
 - Evidence over assumptions.
 - If unverified, say `NO_VERIFICADO`.
-- Albert decides sensitive steps.
-- Prefer controlled routes over generic shell.
+- Albert decides through PR review, merge decisions, cleanup confirmations, and protected-zone exceptions.
+- The unit of work is the project, not the command, file, or allowlist.
 - Do not hide blockers or approval failures.
+
+If this handoff conflicts with `references/neodaemon_operating_model_v2.md`, use Operating Model v2 as the behavioral source of truth.
 
 ## Current Architecture
 
@@ -88,11 +96,13 @@ Typical flow:
 branch → minimal change → validation → commit → push → PR → Albert manual merge
 ```
 
-Common safe routes:
+Compatibility routes:
 
 - `publish_doc_folder` for allowlisted Markdown documentation;
 - `autopilot_commit_tools_safe` for allowed `tools/*.sh` changes;
 - `github_sync_main` before cleanup or new work.
+
+These routes remain useful, but they are compatibility mechanisms. They are not the target architecture for normal project delivery.
 
 No automatic merge. No automatic cleanup.
 
@@ -101,10 +111,18 @@ No automatic merge. No automatic cleanup.
 Use this sequence for non-trivial work:
 
 ```text
-FEATURE_PROPOSAL → OK FEATURE → implement minimal change → validate → PR → manual merge → OK CLEANUP
+FEATURE_PROPOSAL → OK FEATURE → execution → validation → PR → manual merge → OK CLEANUP
 ```
 
-A proposal should include objective, files, risk, validations, rollback, and next minimal action.
+A proposal should include objective, perimeter, risk, validations, rollback, and next minimal action.
+
+After an objective is approved, NeoDaemon should execute obvious and necessary project-local substeps inside the approved perimeter instead of creating proposal chains for each substep or unblock.
+
+Preferred flow:
+
+```text
+objective → execution → validation → PR → Albert decision
+```
 
 ## OK CLEANUP Workflow
 
@@ -154,6 +172,15 @@ Protected areas require explicit confirmation:
 - runtime Telegram/RAG changes;
 - global sandbox or approval policy.
 
+Approvals and micro-allowlists are not the primary operating strategy.
+
+Principle:
+
+```text
+The main human control mechanism is PR review + merge decision.
+Not approval by action.
+```
+
 Forbidden by default:
 
 - force;
@@ -176,6 +203,7 @@ Important references:
 
 - `references/gpt_operator_behavior.md`
 - `references/gpt_operator_workflow.md`
+- `references/neodaemon_operating_model_v2.md`
 - `references/project_delivery_protocol.md`
 - `references/github_workflow.md`
 - `references/security.md`
@@ -187,7 +215,8 @@ The Skill summarizes and links. It should not become a duplicate of every status
 
 Verified current state from recent operational work:
 
-- `publish_doc_folder` can publish allowlisted Skill Markdown.
+- `references/neodaemon_operating_model_v2.md` is the main behavioral reference for Project Executor operations.
+- `publish_doc_folder` can publish allowlisted Skill Markdown as a compatibility route.
 - `OK CLEANUP <hash>` remains the desired official cleanup UX.
 - MAIN/RAG decoupling is documented.
 - The NeoDaemon Skill exists and is used as an operator entrypoint.
@@ -204,15 +233,15 @@ Items that require live inspection before claims:
 
 - Keep `OK CLEANUP <hash>` stable and visible across SSH and `/main`.
 - Document significant runtime fixes in repo status or Skill docs.
-- Avoid approval-loop workarounds unless explicitly approved.
-- Keep documentation routes unified and allowlisted.
+- Keep Protected Zones hard while moving normal project work toward Project Executor behavior.
+- Avoid new micro-allowlists and per-action approvals as the main strategy.
 
 ## Medium-Term Priorities
 
 - Make dashboard-v2 a concise executive overview.
 - Version or document ownership for critical runtime files.
 - Improve read-only observability for GitHub reviewer, resources, tokens, and project state.
-- Reduce repeated approvals by adding narrow controlled actions rather than broad permissions.
+- Reduce repeated approvals by moving normal project-local work into the Project Executor perimeter with validation and PR review.
 
 ## Long-Term Vision
 
@@ -249,6 +278,7 @@ Then inspect as needed:
 
 - `OpenClaw-NeoDaemon-Skill/references/gpt_operator_behavior.md`
 - `OpenClaw-NeoDaemon-Skill/references/gpt_operator_workflow.md`
+- `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`
 - `OpenClaw-NeoDaemon-Skill/references/project_delivery_protocol.md`
 - `OpenClaw-NeoDaemon-Skill/references/github_workflow.md`
 - `OpenClaw-NeoDaemon-Skill/CHANGELOG.md`
@@ -260,13 +290,15 @@ Then inspect as needed:
 
 1. Read `OpenClaw-NeoDaemon-Skill/SKILL.md`.
 2. Read this `MASTER_HANDOFF.md`.
-3. Treat live state as unverified until inspected.
-4. For non-trivial work, ask NeoDaemon for `FEATURE_PROPOSAL`.
-5. Do not recommend `OK FEATURE` until you perform critical review.
-6. Keep Albert's official workflow intact:
+3. Read `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`.
+4. Treat live state as unverified until inspected.
+5. For non-trivial work, ask NeoDaemon for `FEATURE_PROPOSAL`.
+6. Do not recommend `OK FEATURE` until you perform critical review.
+7. After an objective is approved, assume normal execution inside the approved perimeter is allowed unless a Protected Zone, ambiguity, external action, safety constraint, or materially different direction appears.
+8. Keep Albert's official workflow intact:
 
 ```text
-FEATURE_PROPOSAL → OK FEATURE → PR → manual merge → OK CLEANUP <hash>
+FEATURE_PROPOSAL → OK FEATURE → execution → validation → PR → manual merge → OK CLEANUP <hash>
 ```
 
-7. If blocked, state the exact blocker and next minimal action.
+9. If blocked, state the exact blocker and next minimal action.
