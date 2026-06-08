@@ -333,6 +333,10 @@ def git_one(*args):
     return lines[0] if lines else ""
 
 
+def git_commit_exists(rev):
+    return git_ok("rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
+
+
 def load_github_env():
     env_path = os.path.join(os.path.expanduser("~"), ".openclaw", "neodaemon", "sec" + "rets", "github.env")
     env = {}
@@ -471,6 +475,8 @@ candidates = build_candidates()
 matches = [item for item in candidates if item.get("short_hash", "").lower().startswith(short_hash)]
 
 if not matches:
+    if not git_commit_exists(short_hash):
+        blocked("short hash does not resolve to a local commit")
     env = load_github_env()
     auth_value = env.get("GITHUB_" + "TO" + "KEN", "")
     repo = env.get("GITHUB_REPO", "terrassacode/neodaemon_v1")
