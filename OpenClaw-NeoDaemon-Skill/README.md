@@ -35,6 +35,10 @@ Use this skill when you need to:
 - [`SKILL.md`](SKILL.md): primary operational entrypoint for agents.
 - [`references/`](references/): short domain notes for architecture, operations, security, GitHub, dashboard, RAG, and project state.
 
+## Publishing
+
+Use the controlled `publish_doc_folder` route for NeoDaemon Skill Markdown updates.
+
 ## Safety Limits
 
 This skill is read-first documentation. It does not replace approval rules or `docs/status` project records.
