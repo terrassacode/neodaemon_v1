@@ -39,6 +39,10 @@ Use this skill when you need to:
 
 Use the controlled `publish_doc_folder` route for NeoDaemon Skill Markdown updates.
 
+## Cleanup Validation
+
+This README includes a small documentation change used to validate the `OK CLEANUP <hash>` workflow.
+
 ## Safety Limits
 
 This skill is read-first documentation. It does not replace approval rules or `docs/status` project records.
