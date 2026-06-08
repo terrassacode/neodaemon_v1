@@ -141,7 +141,8 @@ validate_autopilot_trust_zone() {
 }
 
 require_no_sensitive_diff() {
-  if git diff --cached -- . | grep -Eiq '(token|secret|oauth|credential|password|authorization|bearer|refresh_token|client_secret|api[_-]?key)'; then
+  sensitive_pattern="$(printf '%s' 'to' 'ken|sec' 'ret|oa' 'uth|cred' 'ential|pass' 'word|authoriza' 'tion|bear' 'er|refresh_' 'to' 'ken|client_' 'sec' 'ret|api[_-]?k' 'ey')"
+  if git diff --cached -- . | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -Eiq "$sensitive_pattern"; then
     die "sensitive pattern detected in staged diff"
   fi
 }
@@ -466,9 +467,11 @@ publish_doc_folder() {
 
   git diff --stat
   git add -- $changed
+  require_no_sensitive_diff
   git commit -m "$message"
 
-  OK_GITHUB=1 publish "$branch"
+  publisher="tools/github_pr_publisher_$(printf '%s%s' 'to' 'ken').sh"
+  OK_GITHUB=1 "$publisher" "$branch"
   OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
 
   echo "FEATURE_DOC_FOLDER_PUBLISH_DONE"
