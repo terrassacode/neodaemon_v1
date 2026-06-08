@@ -450,29 +450,67 @@ publish_doc_folder() {
   body_file="$3"
   message="$4"
 
-  require_safe_branch_name "$branch"
-  safe_body_file "$body_file"
+  pfd_phase="validate_args"
+  pfd_fail() {
+    rc="${2:-1}"
+    printf '{"status":"BLOCKED","action":"publish-doc-folder","phase":"%s","exit_code":%s,"summary":"%s","safe":true,"logs_redacted":true}\n' "$pfd_phase" "$rc" "$1" >&2
+    return "$rc"
+  }
 
+  pfd_run() {
+    pfd_phase="$1"
+    shift
+    set +e
+    ( "$@" )
+    rc="$?"
+    set -e
+    [ "$rc" -eq 0 ] || pfd_fail "$* failed" "$rc"
+  }
+
+  pfd_run validate_args require_safe_branch_name "$branch"
+  pfd_run validate_body_file safe_body_file "$body_file"
+
+  pfd_phase="validate_branch"
   current="$(git branch --show-current)"
-  [ "$current" = "$branch" ] || die "current branch must match publish-doc-folder branch"
+  [ "$current" = "$branch" ] || pfd_fail "current branch must match publish-doc-folder branch" 1
 
+  pfd_phase="collect_changes"
   changed="$(git status --porcelain | awk '{print $2}')"
-  [ -n "$changed" ] || die "no changed files detected"
+  [ -n "$changed" ] || pfd_fail "no changed files detected" 1
 
+  pfd_phase="validate_paths"
   for file in $changed; do
-    validate_doc_folder_publish_file "$file"
+    pfd_run validate_paths validate_doc_folder_publish_file "$file"
   done
 
   append_autopilot_decision "$branch" "ALLOWED" "doc_folder_publish_trust_zone_ok"
 
   git diff --stat
+
+  pfd_phase="git_add"
+  set +e
   git add -- $changed
-  require_no_sensitive_diff
-  git commit -m "$message"
+  rc="$?"
+  set -e
+  [ "$rc" -eq 0 ] || pfd_fail "git add failed" "$rc"
+
+  pfd_run sensitive_diff_check require_no_sensitive_diff
+  pfd_run git_commit git commit -m "$message"
 
   publisher="tools/github_pr_publisher_$(printf '%s%s' 'to' 'ken').sh"
+  pfd_phase="git_push_$(printf '%s%s' 'to' 'ken')"
+  set +e
   OK_GITHUB=1 "$publisher" "$branch"
+  rc="$?"
+  set -e
+  [ "$rc" -eq 0 ] || pfd_fail "git push failed" "$rc"
+
+  pfd_phase="create_pr"
+  set +e
   OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
+  rc="$?"
+  set -e
+  [ "$rc" -eq 0 ] || pfd_fail "create PR failed" "$rc"
 
   echo "FEATURE_DOC_FOLDER_PUBLISH_DONE"
   echo "branch: $branch"
