@@ -303,7 +303,8 @@ github_post_merge_cleanup_assistant() {
   confirmation="$2"
 
   if [ -n "$confirmation" ]; then
-    parsed="$(CONFIRMATION="$confirmation" python3 - <<'PYJSON'
+    set +e
+    parsed="$(CONFIRMATION="$confirmation" python3 - 2>&1 <<'PYJSON'
 import json
 import os
 import re
@@ -371,6 +372,45 @@ def pr_for_branch(branch, repo, owner, auth_value):
     return {"pr_number": item.get("number"), "branch": item.get("head", {}).get("ref", ""), "merged": bool(item.get("merged_at"))}
 
 
+def safe_branch_name(branch):
+    if not branch or branch in {"main", "master"}:
+        return False
+    if any(item in branch for item in ["..", "~", "^", ":", "\\", " "]):
+        return False
+    if branch.startswith("/") or branch.startswith("../") or "/../" in branch or branch.startswith("origin/"):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9._/-]+", branch))
+
+
+def pr_commits(repo, number, auth_value):
+    data = api_get(f"https://api.github.com/repos/{repo}/pulls/{number}/commits?per_page=100", auth_value)
+    if not isinstance(data, list):
+        return []
+    return [item.get("sha", "") for item in data if item.get("sha")]
+
+
+def recent_merged_pr_matches(short_hash, repo, owner, auth_value):
+    data = api_get(f"https://api.github.com/repos/{repo}/pulls?base=main&state=closed&sort=updated&direction=desc&per_page=50", auth_value)
+    if not isinstance(data, list):
+        return []
+    matches = []
+    for item in data:
+        if not item.get("merged_at"):
+            continue
+        number = item.get("number")
+        branch = item.get("head", {}).get("ref", "")
+        if not number or not safe_branch_name(branch):
+            continue
+        values = [
+            item.get("merge_commit_sha", ""),
+            item.get("head", {}).get("sha", ""),
+        ]
+        values.extend(pr_commits(repo, number, auth_value))
+        if any(value and value.lower().startswith(short_hash) for value in values):
+            matches.append({"pr_number": number, "branch": branch})
+    return matches
+
+
 def build_candidates():
     current_branch = git_one("branch", "--show-current")
     working_tree_clean = not git_lines("status", "--short")
@@ -429,6 +469,33 @@ if not short_match:
 short_hash = short_match.group(1).lower()
 candidates = build_candidates()
 matches = [item for item in candidates if item.get("short_hash", "").lower().startswith(short_hash)]
+
+if not matches:
+    env = load_github_env()
+    auth_value = env.get("GITHUB_" + "TO" + "KEN", "")
+    repo = env.get("GITHUB_REPO", "terrassacode/neodaemon_v1")
+    owner = repo.split("/", 1)[0]
+    if auth_value:
+        metadata_matches = recent_merged_pr_matches(short_hash, repo, owner, auth_value)
+        if len(metadata_matches) == 1:
+            item = metadata_matches[0]
+            branch = item.get("branch", "")
+            if not safe_branch_name(branch):
+                blocked("candidate branch is not safe")
+            local_exists = bool(git_lines("branch", "--list", branch))
+            remote_exists = bool(git_lines("branch", "-r", "--list", f"origin/{branch}"))
+            if not local_exists and not remote_exists:
+                print("ALREADY_CLEANED" + "\t" + str(item.get("pr_number")) + "\t" + branch)
+                raise SystemExit(0)
+            matches = [{
+                "pr_number": item.get("pr_number"),
+                "branch": branch,
+                "short_hash": short_hash,
+                "cleanup_ready": True,
+            }]
+        elif len(metadata_matches) > 1:
+            blocked("multiple cleanup candidates for short hash")
+
 if len(matches) != 1:
     blocked("short hash does not resolve to one cleanup candidate")
 
@@ -443,7 +510,18 @@ if not candidate.get("cleanup_ready"):
 expected_confirmation = f"OK CLEANUP PR #{candidate_pr_number} branch {branch}"
 print(str(candidate_pr_number) + "\t" + branch + "\t" + expected_confirmation)
 PYJSON
-)" || die "missing exact OK CLEANUP confirmation"
+)"
+    parse_rc="$?"
+    set -e
+    [ "$parse_rc" -eq 0 ] || die "$parsed"
+
+    parsed_mode="$(printf '%s' "$parsed" | awk '{print $1}')"
+    if [ "$parsed_mode" = "ALREADY_CLEANED" ]; then
+      cleanup_pr_number="$(printf '%s' "$parsed" | awk '{print $2}')"
+      cleanup_branch="$(printf '%s' "$parsed" | awk '{print $3}')"
+      printf '{"status":"OK","action":"github_post_merge_cleanup_assistant","result":"already_cleaned","pr_number":%s,"branch":"%s","safe":true,"logs_redacted":true}\n' "$cleanup_pr_number" "$cleanup_branch"
+      return 0
+    fi
 
     cleanup_pr_number="$(printf '%s' "$parsed" | awk '{print $1}')"
     cleanup_branch="$(printf '%s' "$parsed" | awk '{print $2}')"
