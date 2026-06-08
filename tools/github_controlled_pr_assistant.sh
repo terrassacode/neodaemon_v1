@@ -268,6 +268,8 @@ require_safe_doc_folder_path() {
   file="$1"
 
   case "$file" in
+    scripts/project/*.py)
+      ;;
     task_manager/README.md)
       ;;
     task_manager/projects/neodaemon.json)
@@ -283,7 +285,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, and task_manager/projects/neodaemon.json are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, and scripts/project/**/*.py are allowed: $file"
       ;;
   esac
 
@@ -294,7 +296,7 @@ require_safe_doc_folder_path() {
   esac
 
   printf '%s' "$file" | grep -Eq '^[A-Za-z0-9._/-]+$' || die "invalid doc folder path: $file"
-  doc_folder_blocked_pattern="$(printf '%s' 'to' 'ken|sec' 'ret|oa' 'uth|pass' 'word|cred' 'ential|k' 'ey|au' 'th')"
+  doc_folder_blocked_pattern="$(printf '%s' 'to' 'ken|sec' 'ret|oa' 'uth|pass' 'word|cred' 'ential|k' 'ey|au' 'th|en' 'v')"
   printf '%s' "$file" | grep -Eiq "$doc_folder_blocked_pattern" && die "protected doc folder path blocked: $file"
 }
 
@@ -305,6 +307,9 @@ validate_doc_folder_publish_file() {
   require_not_protected_path "$file"
 
   case "$file" in
+    scripts/project/*.py)
+      python3 -m py_compile "$file"
+      ;;
     *.md)
       test -f "$file" || die "doc folder file not found: $file"
       ;;
