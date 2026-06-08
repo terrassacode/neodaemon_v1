@@ -487,8 +487,22 @@ publish_doc_folder() {
   [ "$current" = "$branch" ] || pfd_fail "current branch must match publish-doc-folder branch" 1
 
   pfd_phase="collect_changes"
-  changed="$(git status --porcelain | awk '{print $2}')"
-  [ -n "$changed" ] || pfd_fail "no changed files detected" 1
+  raw_changed="$(git status --porcelain | awk '{print $2}')"
+  [ -n "$raw_changed" ] || pfd_fail "no changed files detected" 1
+
+  changed=""
+  for file in $raw_changed; do
+    if [ -d "$file" ]; then
+      expanded_files="$(find "$file" -type f | sort)"
+      [ -n "$expanded_files" ] || pfd_fail "changed directory has no files: $file" 1
+      changed="$(printf '%s\n%s\n' "$changed" "$expanded_files" | sed '/^$/d')"
+    else
+      changed="$(printf '%s\n%s\n' "$changed" "$file" | sed '/^$/d')"
+    fi
+  done
+
+  changed="$(printf '%s\n' "$changed" | sort -u)"
+  [ -n "$changed" ] || pfd_fail "no changed files detected after directory expansion" 1
 
   pfd_phase="validate_paths"
   for file in $changed; do
