@@ -5,26 +5,32 @@
   "health": "YELLOW",
   "priority": "P0",
   "working": [
-    "Maintain NeoDaemon as MAIN coordinator for OpenClaw",
-    "Use FEATURE_PROPOSAL → OK FEATURE → PR → manual merge → OK CLEANUP workflow",
-    "Keep Skill documentation as the operational entrypoint"
+    "Operate NeoDaemon as MAIN coordinator and Project Executor for OpenClaw",
+    "Use objective → execution → validation → PR → Albert decision as the preferred flow",
+    "Keep Operating Model v2, Role Model v1, MASTER_HANDOFF, and Skill references aligned"
   ],
   "blocked": [
-    "Current runtime state requires live inspection before claims"
+    "Current runtime state requires live inspection before claims",
+    "Project Executor implementation is not yet active; current execution still uses compatibility routes"
   ],
   "next": [
-    "Validate current runtime state",
-    "Use this file in at least one real executive review before expanding task_manager"
+    "Validate current runtime state through a safe read-only route",
+    "Design Project Executor implementation after documentation model stabilizes"
   ],
   "evidence": [
-    "PR #94",
-    "PR #96",
-    "PR #97",
-    "PR #99",
     "PR #100",
     "PR #101",
+    "PR #102",
+    "PR #103",
+    "PR #104",
+    "PR #105",
+    "PR #106",
+    "PR #107",
+    "PR #108",
     "OpenClaw-NeoDaemon-Skill/SKILL.md",
-    "OpenClaw-NeoDaemon-Skill/MASTER_HANDOFF.md"
+    "OpenClaw-NeoDaemon-Skill/MASTER_HANDOFF.md",
+    "OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md",
+    "OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md"
   ],
   "last_updated": "2026-06-08"
 }
