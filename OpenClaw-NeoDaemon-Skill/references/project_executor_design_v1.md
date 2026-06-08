@@ -193,6 +193,16 @@ preflight → branch → edit support → validation → commit → push → PR 
 
 A hard blocker that runs before commit and before push.
 
+Initial standalone component:
+
+```text
+scripts/project/protected_zone_scanner_v1.py
+```
+
+This scanner evaluates repository-relative paths, normalizes `./` prefixes, blocks absolute paths and parent traversal, allows the initial Project Executor perimeter, and returns JSON with `status`, `safe`, `files_evaluated`, and `blocked` entries.
+
+It is not integrated automatically yet.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
