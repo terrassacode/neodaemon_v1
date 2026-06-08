@@ -15,10 +15,12 @@ Define how a GPT operator should coordinate with NeoDaemon. This document define
 ## Operating Flow
 
 ```text
-analysis → FEATURE_PROPOSAL → OK FEATURE → minimal change → validation → PR → manual merge → OK CLEANUP
+analysis → FEATURE_PROPOSAL → OK FEATURE → execution → validation → PR → manual merge → OK CLEANUP
 ```
 
 Do not skip confirmation for sensitive or non-trivial changes.
+
+For approved project-local work, do not force NeoDaemon into proposal chains for obvious substeps. The expected path is objective → execution → validation → PR.
 
 ## Talking To NeoDaemon
 
@@ -55,6 +57,8 @@ Block instead of guessing when:
 ## Manual Human Steps
 
 Ask for manual SSH/approval only after a controlled route fails or is unavailable. Include the exact pending action and why it is required.
+
+Do not treat per-action approval as the primary control model. The primary control is PR review and manual merge.
 
 ## NO_VERIFICADO
 

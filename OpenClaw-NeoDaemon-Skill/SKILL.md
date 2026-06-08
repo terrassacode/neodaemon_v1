@@ -13,6 +13,8 @@ safety: Read-first; protected areas require explicit Albert confirmation.
 For NeoDaemon/OpenClaw operational work, start with this `SKILL.md`.
 
 - Operator behavior: [gpt_operator_behavior.md](references/gpt_operator_behavior.md)
+- Operating model: [neodaemon_operating_model_v2.md](references/neodaemon_operating_model_v2.md)
+- Role model: [openclaw_role_model_v1.md](references/openclaw_role_model_v1.md)
 - Medium/large projects: [project_delivery_protocol.md](references/project_delivery_protocol.md)
 
 This skill summarizes and links operational guidance; it does not replace `docs/status`.
@@ -21,13 +23,13 @@ This skill summarizes and links operational guidance; it does not replace `docs/
 
 Use this skill to understand and operate NeoDaemon safely inside OpenClaw.
 
-NeoDaemon is the MAIN coordinator for Albert. It turns goals into bounded proposals, safe actions, validation, PRs, and post-merge cleanup.
+NeoDaemon is the MAIN coordinator and Project Executor for Albert. It turns approved objectives into the smallest coherent project scope, execution, validation, PRs, and post-merge cleanup.
 
 ## When To Use
 
 Use this skill when an agent needs to:
 
-- prepare or review a `FEATURE_PROPOSAL`;
+- prepare or review a `FEATURE_PROPOSAL` for non-trivial objectives;
 - find the correct NeoDaemon reference document;
 - work with GitHub safely;
 - check project status or dashboard guidance;
@@ -36,16 +38,18 @@ Use this skill when an agent needs to:
 ## Quickstart for Agents
 
 - **What NeoDaemon is:** the MAIN coordinator in `Albert → NeoDaemon → tools/subagents → NeoDaemon → Albert`.
+- **How NeoDaemon behaves:** follow `references/neodaemon_operating_model_v2.md`; the unit of work is the project.
+- **Role boundaries:** read `references/openclaw_role_model_v1.md`; Albert owns decisions, GPT owns strategic critique, NeoDaemon owns execution.
 - **What not to touch:** secrets, tokens, OpenClaw core, gateway/routing, models, systemd, services, global approvals, or runtime dashboards without explicit confirmation.
 - **Project state:** start with `references/project_state.md`, then check `docs/status/project-dashboard-state-v1.json`.
 - **Dashboards:** use `references/dashboard.md`; dashboards are observability only, never execution surfaces.
 - **GitHub work:** use `references/github_workflow.md`; Albert still reviews/merges PRs manually.
-- **Basic diagnosis:** if a controlled action exists, use it before shell; if approval loops appear, report blocked instead of guessing.
+- **Basic diagnosis:** if work is inside the approved project perimeter, execute normal substeps; if a protected boundary or approval loop appears, report the blocker instead of guessing.
 - **Documentation lookup:** use the routing table below, then follow links to existing repo docs.
 
 ## Examples
 
-- `FEATURE_PROPOSAL`: read `references/operations.md`, then keep scope and rollback explicit.
+- `FEATURE_PROPOSAL`: read `references/operations.md`, then keep perimeter, validation, and rollback explicit.
 - GitHub publish/cleanup: read `references/github_workflow.md` and `references/security.md`.
 - Dashboard question: read `references/dashboard.md`; do not add operational controls.
 - RAG/routing issue: read `references/rag.md` before treating operational commands as search queries.
@@ -62,7 +66,7 @@ NeoDaemon remains responsible for final synthesis back to Albert.
 ## Safe Commands / Actions
 
 Prefer allowlisted JSON actions through the bridge/local executor when available.
-Do not use generic shell for operations that already have a controlled route.
+Treat legacy controlled routes as compatibility mechanisms until Project Executor replaces them inside the approved perimeter.
 
 Common capabilities:
 
@@ -92,6 +96,9 @@ Common capabilities:
 | Dashboard | [dashboard.md](references/dashboard.md) |
 | RAG | [rag.md](references/rag.md) |
 | Project Status | [project_state.md](references/project_state.md) |
+| Operating Model | [neodaemon_operating_model_v2.md](references/neodaemon_operating_model_v2.md) |
+| Role Model | [openclaw_role_model_v1.md](references/openclaw_role_model_v1.md) |
+| Documentation Perimeter | [project_executor_documentation_perimeter.md](references/project_executor_documentation_perimeter.md) |
 | GPT Operator | [gpt_operator_behavior.md](references/gpt_operator_behavior.md) |
 | GPT Operator Workflow | [gpt_operator_workflow.md](references/gpt_operator_workflow.md) |
 | Project Delivery | [project_delivery_protocol.md](references/project_delivery_protocol.md) |
@@ -105,6 +112,9 @@ Common capabilities:
 - [Dashboard](references/dashboard.md)
 - [RAG](references/rag.md)
 - [Project State](references/project_state.md)
+- [NeoDaemon Operating Model v2](references/neodaemon_operating_model_v2.md)
+- [OpenClaw Role Model v1](references/openclaw_role_model_v1.md)
+- [Project Executor Documentation Perimeter](references/project_executor_documentation_perimeter.md)
 - [GPT Operator Behavior](references/gpt_operator_behavior.md)
 - [GPT Operator Workflow](references/gpt_operator_workflow.md)
 - [Project Delivery Protocol](references/project_delivery_protocol.md)
