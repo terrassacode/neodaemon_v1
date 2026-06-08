@@ -1,0 +1,30 @@
+{
+  "id": "neodaemon",
+  "name": "NeoDaemon",
+  "status": "IN_PROGRESS",
+  "health": "YELLOW",
+  "priority": "P0",
+  "working": [
+    "Maintain NeoDaemon as MAIN coordinator for OpenClaw",
+    "Use FEATURE_PROPOSAL → OK FEATURE → PR → manual merge → OK CLEANUP workflow",
+    "Keep Skill documentation as the operational entrypoint"
+  ],
+  "blocked": [
+    "Current runtime state requires live inspection before claims"
+  ],
+  "next": [
+    "Validate current runtime state",
+    "Use this file in at least one real executive review before expanding task_manager"
+  ],
+  "evidence": [
+    "PR #94",
+    "PR #96",
+    "PR #97",
+    "PR #99",
+    "PR #100",
+    "PR #101",
+    "OpenClaw-NeoDaemon-Skill/SKILL.md",
+    "OpenClaw-NeoDaemon-Skill/MASTER_HANDOFF.md"
+  ],
+  "last_updated": "2026-06-08"
+}
