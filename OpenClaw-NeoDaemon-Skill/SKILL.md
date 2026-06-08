@@ -15,6 +15,7 @@ For NeoDaemon/OpenClaw operational work, start with this `SKILL.md`.
 - Operator behavior: [gpt_operator_behavior.md](references/gpt_operator_behavior.md)
 - Operating model: [neodaemon_operating_model_v2.md](references/neodaemon_operating_model_v2.md)
 - Role model: [openclaw_role_model_v1.md](references/openclaw_role_model_v1.md)
+- Project Executor design: [project_executor_design_v1.md](references/project_executor_design_v1.md)
 - Medium/large projects: [project_delivery_protocol.md](references/project_delivery_protocol.md)
 
 This skill summarizes and links operational guidance; it does not replace `docs/status`.
@@ -98,6 +99,7 @@ Common capabilities:
 | Project Status | [project_state.md](references/project_state.md) |
 | Operating Model | [neodaemon_operating_model_v2.md](references/neodaemon_operating_model_v2.md) |
 | Role Model | [openclaw_role_model_v1.md](references/openclaw_role_model_v1.md) |
+| Project Executor Design | [project_executor_design_v1.md](references/project_executor_design_v1.md) |
 | Documentation Perimeter | [project_executor_documentation_perimeter.md](references/project_executor_documentation_perimeter.md) |
 | GPT Operator | [gpt_operator_behavior.md](references/gpt_operator_behavior.md) |
 | GPT Operator Workflow | [gpt_operator_workflow.md](references/gpt_operator_workflow.md) |
@@ -114,6 +116,7 @@ Common capabilities:
 - [Project State](references/project_state.md)
 - [NeoDaemon Operating Model v2](references/neodaemon_operating_model_v2.md)
 - [OpenClaw Role Model v1](references/openclaw_role_model_v1.md)
+- [Project Executor Design v1](references/project_executor_design_v1.md)
 - [Project Executor Documentation Perimeter](references/project_executor_documentation_perimeter.md)
 - [GPT Operator Behavior](references/gpt_operator_behavior.md)
 - [GPT Operator Workflow](references/gpt_operator_workflow.md)

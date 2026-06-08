@@ -205,6 +205,7 @@ Important references:
 - `references/gpt_operator_workflow.md`
 - `references/neodaemon_operating_model_v2.md`
 - `references/openclaw_role_model_v1.md`
+- `references/project_executor_design_v1.md`
 - `references/project_executor_documentation_perimeter.md`
 - `references/project_delivery_protocol.md`
 - `references/github_workflow.md`
@@ -283,6 +284,7 @@ Then inspect as needed:
 - `OpenClaw-NeoDaemon-Skill/references/gpt_operator_workflow.md`
 - `OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md`
 - `OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md`
+- `OpenClaw-NeoDaemon-Skill/references/project_executor_design_v1.md`
 - `OpenClaw-NeoDaemon-Skill/references/project_executor_documentation_perimeter.md`
 - `OpenClaw-NeoDaemon-Skill/references/project_delivery_protocol.md`
 - `OpenClaw-NeoDaemon-Skill/references/github_workflow.md`
