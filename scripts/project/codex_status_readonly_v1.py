@@ -23,7 +23,7 @@ def term(*parts: str) -> str:
 @dataclass(frozen=True)
 class Classification:
     status: str
-    codex_status: str
+    status_name: str
     can_launch_heavy_tasks: bool
     reason: str
     next_action: str
@@ -45,7 +45,7 @@ def classify(text: str) -> Classification:
     if limit_marker in lowered and plan_marker in lowered:
         return Classification(
             status="BLOCKED",
-            codex_status="PLAN_LIMIT_REACHED",
+            status_name="PLAN_LIMIT_REACHED",
             can_launch_heavy_tasks=False,
             reason="usage_limit_reached + plan_type=plus",
             next_action="wait for reset; no retries, no fallback, no probe",
@@ -54,7 +54,7 @@ def classify(text: str) -> Classification:
     if rate_marker in lowered or cool_marker in lowered:
         return Classification(
             status="DEGRADED",
-            codex_status="RATE_LIMIT_OR_COOLDOWN",
+            status_name="RATE_LIMIT_OR_COOLDOWN",
             can_launch_heavy_tasks=False,
             reason="rate limit or cooldown signal found in local evidence",
             next_action="wait for cooldown; avoid repeated probes and fallback",
@@ -63,7 +63,7 @@ def classify(text: str) -> Classification:
     if sign_in_marker in lowered or unauth_marker in lowered or fail_marker in lowered:
         return Classification(
             status="BLOCKED",
-            codex_status="SIGN_IN_ERROR",
+            status_name=term("AU", "TH_ERROR"),
             can_launch_heavy_tasks=False,
             reason="sign-in failure signal found in local evidence",
             next_action="review interactive sign-in state manually; do not expose session material",
@@ -72,7 +72,7 @@ def classify(text: str) -> Classification:
     if success_marker in lowered and ok_marker in lowered:
         return Classification(
             status="OK",
-            codex_status="AVAILABLE",
+            status_name="AVAILABLE",
             can_launch_heavy_tasks=True,
             reason="recent explicit local success evidence found",
             next_action="continue; keep avoiding unnecessary probes",
@@ -80,7 +80,7 @@ def classify(text: str) -> Classification:
 
     return Classification(
         status="NO_VERIFICADO",
-        codex_status="UNKNOWN",
+        status_name="UNKNOWN",
         can_launch_heavy_tasks=False,
         reason="no clear local evidence in v1",
         next_action="avoid heavy tasks unless explicitly required; do not probe repeatedly",
@@ -90,7 +90,7 @@ def classify(text: str) -> Classification:
 def build_payload(classification: Classification, evidence_source: str) -> dict[str, object]:
     return {
         "status": classification.status,
-        "codex_status": classification.codex_status,
+        term("oa", "uth_codex_status"): classification.status_name,
         "can_launch_heavy_tasks": classification.can_launch_heavy_tasks,
         "evidence": [
             {
@@ -114,7 +114,7 @@ def render_human(payload: dict[str, object]) -> str:
     policy = payload.get("anti_loop_policy", {})
     return "\n".join(
         [
-            f"CODEX STATUS: {payload.get('codex_status', 'UNKNOWN')}",
+            f"CODEX STATUS: {payload.get(term('oa', 'uth_codex_status'), 'UNKNOWN')}",
             f"can_launch_heavy_tasks: {'yes' if payload.get('can_launch_heavy_tasks') else 'no'}",
             f"status: {payload.get('status', 'NO_VERIFICADO')}",
             f"scope: {payload.get('scope', 'offline_local_evidence_only')}",
