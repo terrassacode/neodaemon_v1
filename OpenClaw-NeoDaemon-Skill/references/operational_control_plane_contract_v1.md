@@ -258,6 +258,14 @@ Human summary mode is available with:
 
 The human summary is derived from the same fixtures-only validation payload and must not recalculate or reinterpret source rules.
 
+The first real-signal adapter lives in:
+
+```text
+scripts/project/operational_control_plane_real_signals_v1.py
+```
+
+V1 connects only project preflight and usage dashboard signals. Heavy model, local healthcheck, and OpenClaw status remain explicitly not connected.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
