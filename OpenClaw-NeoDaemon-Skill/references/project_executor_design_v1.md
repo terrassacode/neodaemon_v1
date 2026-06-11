@@ -241,6 +241,20 @@ For fast human SSH interpretation, the same script also supports:
 
 Human mode uses the same internal health result as JSON mode and prints a compact summary with status, local work capability, scope, branch, worktree state, critical tools, critical project scripts, recommended next action, and the V1 note that external connectivity is omitted.
 
+### 3.2 Project Executor Preflight
+
+Initial standalone component:
+
+```text
+scripts/project/project_executor_preflight_v1.py
+```
+
+This preflight is offline-only and read-only. It gives a reusable readiness gate before starting a Project Executor feature.
+
+V1 checks local evidence only: repository validity, `git status --short`, current branch, required tool files, required project scripts, and healthcheck JSON availability.
+
+It returns JSON with `status` (`READY`, `DEGRADED`, or `BLOCKED`), `can_start_feature`, `checks`, `blockers`, `warnings`, `evidence`, and `recommended_next_action`.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
