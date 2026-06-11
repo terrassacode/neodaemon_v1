@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import argparse
 from pathlib import Path
 from typing import Any
 
@@ -244,10 +245,78 @@ def run_validation() -> dict[str, Any]:
     }
 
 
-def main() -> int:
+def render_human(payload: dict[str, Any]) -> str:
+    results = payload.get("results", [])
+    if not isinstance(results, list):
+        results = []
+
+    fixture_total = payload.get("fixtures_total", 0)
+    fixture_passed = payload.get("fixtures_passed", 0)
+    all_warnings: set[str] = set()
+    all_blockers: set[str] = set()
+    local_yes = False
+    start_yes = False
+    heavy_yes = False
+    risk_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "UNKNOWN": 3}
+    risk = "LOW"
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        summary = item.get("output_summary", {})
+        if not isinstance(summary, dict):
+            continue
+        can_work = summary.get("can_work", {})
+        if isinstance(can_work, dict):
+            local_yes = local_yes or can_work.get("local") is True
+            start_yes = start_yes or can_work.get("start_feature") is True
+            heavy_yes = heavy_yes or can_work.get("heavy_model") is True
+        for code in summary.get("warnings", []) if isinstance(summary.get("warnings", []), list) else []:
+            if isinstance(code, str):
+                all_warnings.add(code)
+        for code in summary.get("blockers", []) if isinstance(summary.get("blockers", []), list) else []:
+            if isinstance(code, str):
+                all_blockers.add(code)
+        item_risk = summary.get("risk_level")
+        if isinstance(item_risk, str) and risk_order.get(item_risk, -1) > risk_order.get(risk, -1):
+            risk = item_risk
+
+    if payload.get("status") != "PASS":
+        next_action = "fix failing fixtures before real-signal adapter"
+    else:
+        next_action = "ready for controlled real-signal adapter"
+
+    warnings_text = ", ".join(sorted(all_warnings)) if all_warnings else "none"
+    blockers_text = ", ".join(sorted(all_blockers)) if all_blockers else "none"
+
+    return "\n".join([
+        "OPERATIONAL CONTROL PLANE",
+        "Mode: fixtures-only",
+        f"Contract: {payload.get('contract', CONTROL_SCHEMA)}",
+        f"Status: {payload.get('status', 'FAIL')}",
+        f"Fixtures: {fixture_passed}/{fixture_total} passed",
+        "Capabilities:",
+        f"  local work ............ {'YES' if local_yes else 'NO'}",
+        f"  start feature ......... {'YES' if start_yes else 'NO'}",
+        f"  heavy model ........... {'YES' if heavy_yes else 'NO'}",
+        f"Risk: {risk}",
+        f"Warnings: {warnings_text}",
+        f"Blockers: {blockers_text}",
+        f"Next action: {next_action}",
+    ])
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Validate Operational Control Plane fixtures")
+    parser.add_argument("--human", action="store_true", help="Print human summary derived from validation JSON")
+    args = parser.parse_args(argv)
+
     try:
         payload = run_validation()
-        print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
+        if args.human:
+            print(render_human(payload)[:OUTPUT_LIMIT])
+        else:
+            print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
         return 0 if payload["status"] == "PASS" else 1
     except Exception as exc:
         payload = {
@@ -257,9 +326,12 @@ def main() -> int:
             "safe": True,
             "logs_redacted": True,
         }
-        print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
+        if args.human:
+            print(render_human(payload)[:OUTPUT_LIMIT])
+        else:
+            print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
         return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
