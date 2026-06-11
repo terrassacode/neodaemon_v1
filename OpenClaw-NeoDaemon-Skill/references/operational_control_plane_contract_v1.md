@@ -242,6 +242,14 @@ OpenClaw-NeoDaemon-Skill/references/operational_control_plane_fixtures_v1.md
 
 They are data-only acceptance cases for the future aggregator and do not implement operational logic.
 
+The fixtures-only aggregator lives in:
+
+```text
+scripts/project/operational_control_plane_aggregator_v1.py
+```
+
+It validates fixture expectations before any live signals are consumed.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
