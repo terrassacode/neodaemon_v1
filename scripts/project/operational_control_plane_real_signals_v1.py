@@ -3,9 +3,10 @@
 
 Read-only adapter for the first safe real-signal connection:
 - project preflight script
+- project healthcheck script
 - existing usage dashboard JSON
 
-No provider, OpenClaw status, healthcheck, runtime, network, or UI signals are read.
+No provider, OpenClaw status, runtime, network, or UI signals are read.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ def term(*parts: str) -> str:
 
 
 PREFLIGHT_SCRIPT = Path("scripts/project/project_executor_preflight_v1.py")
+HEALTHCHECK_SCRIPT = Path("scripts/project/neodaemon_healthcheck_v1.py")
 USAGE_DASHBOARD = Path("dashboard-v2/data") / term("to", "ken_dashboard_v0_1.json")
 
 
@@ -51,6 +53,28 @@ def run_preflight() -> tuple[dict[str, Any] | None, str | None]:
         return None, "PREFLIGHT_JSON_INVALID"
     if not isinstance(data, dict):
         return None, "PREFLIGHT_JSON_NOT_OBJECT"
+    return data, None
+
+
+def run_healthcheck() -> tuple[dict[str, Any] | None, str | None]:
+    if not HEALTHCHECK_SCRIPT.is_file():
+        return None, "HEALTHCHECK_SCRIPT_MISSING"
+    proc = subprocess.run(
+        ["python3", str(HEALTHCHECK_SCRIPT)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None, "HEALTHCHECK_SCRIPT_FAILED"
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return None, "HEALTHCHECK_JSON_INVALID"
+    if not isinstance(data, dict):
+        return None, "HEALTHCHECK_JSON_NOT_OBJECT"
     return data, None
 
 
@@ -89,8 +113,12 @@ def build_payload() -> dict[str, Any]:
     blockers: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
 
+    healthcheck, healthcheck_error = run_healthcheck()
     preflight, preflight_error = run_preflight()
     usage, usage_error = read_usage_dashboard()
+
+    if healthcheck_error:
+        add(warnings, healthcheck_error, "healthcheck signal unavailable")
 
     if preflight_error:
         add(warnings, preflight_error, "preflight signal unavailable")
@@ -99,8 +127,21 @@ def build_payload() -> dict[str, Any]:
         add(warnings, usage_error, "usage dashboard unavailable")
 
     add(warnings, "HEAVY_MODEL_NOT_CONNECTED_V1", "heavy model signal intentionally not connected in V1")
-    add(warnings, "LOCAL_HEALTH_NOT_CONNECTED_V1", "local health signal intentionally not connected in V1")
     add(warnings, "OPENCLAW_STATUS_NOT_CONNECTED_V1", "OpenClaw status signal intentionally not connected in V1")
+
+    healthcheck_status = healthcheck.get("status") if isinstance(healthcheck, dict) else "NO_VERIFICADO"
+    local_can_work = healthcheck.get("local_can_work_now") if isinstance(healthcheck, dict) else None
+    can_work_local = True if healthcheck_status == "OK" and local_can_work is True else None
+
+    if healthcheck_status == "DEGRADED":
+        add(warnings, "LOCAL_HEALTH_DEGRADED", "local health is degraded")
+        can_work_local = False if local_can_work is False else None
+    elif healthcheck_status == "BLOCKED":
+        add(blockers, "LOCAL_HEALTH_BLOCKED", "local health blocks local work")
+        can_work_local = False
+    elif healthcheck_status == "NO_VERIFICADO" or healthcheck_error:
+        add(warnings, "LOCAL_HEALTH_NO_VERIFICADO", "local health is not verified")
+        can_work_local = None
 
     preflight_status = preflight.get("status") if isinstance(preflight, dict) else "NO_VERIFICADO"
     can_start_feature = bool(preflight and preflight.get("can_start_feature") is True and preflight_status == "READY")
@@ -109,7 +150,10 @@ def build_payload() -> dict[str, Any]:
         add(blockers, "PREFLIGHT_BLOCKED", "preflight blocks feature start")
         can_start_feature = False
 
-    if preflight_error:
+    if healthcheck_status == "BLOCKED":
+        status = "BLOCKED"
+        risk = "HIGH"
+    elif preflight_error:
         status = "NO_VERIFICADO"
         risk = "UNKNOWN"
         can_start_feature = False
@@ -133,19 +177,19 @@ def build_payload() -> dict[str, Any]:
         "status": status,
         "risk_level": risk,
         "can_work": {
-            "local": None,
+            "local": can_work_local,
             "start_feature": can_start_feature,
             "heavy_model": False,
         },
         "confidence": {
-            "healthcheck": "NO_VERIFICADO",
+            "healthcheck": "HIGH" if not healthcheck_error else "NO_VERIFICADO",
             "preflight": "HIGH" if not preflight_error else "NO_VERIFICADO",
             "codex": "NO_VERIFICADO",
             "openclaw_status": "NO_VERIFICADO",
             "usage_dashboard": "LOW" if not usage_error else "NO_VERIFICADO",
         },
         "signals": {
-            "healthcheck": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {}},
+            "healthcheck": {"status": healthcheck_status, "confidence": "HIGH" if not healthcheck_error else "NO_VERIFICADO", "summary": healthcheck or {}},
             "preflight": {"status": preflight_status, "confidence": "HIGH" if not preflight_error else "NO_VERIFICADO", "summary": preflight or {}},
             "codex": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
             "openclaw_status": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
