@@ -269,6 +269,20 @@ V1 uses only `openclaw status` text. It does not use `openclaw status --usage`.
 
 It returns JSON with `status` (`OK`, `WARNING`, `DEGRADED`, or `NO_VERIFICADO`), `signals`, `warnings`, `checks`, and `recommended_next_action`. Human mode is available with `--human`.
 
+### 3.4 NeoDaemon Operational Status
+
+Initial standalone component:
+
+```text
+scripts/project/neodaemon_operational_status_v1.py
+```
+
+This aggregator is read-only and does not execute OpenClaw, providers, or other project scripts. It combines already captured JSON signals into one short operational view.
+
+V1 always separates local project work from heavy model work. Local work can be allowed while heavy model work remains warning or blocked.
+
+It returns JSON with `status`, `can_work_now`, `risk_level`, `local_work`, `heavy_model_work`, `signals`, `blockers`, `warnings`, and `recommended_next_action`. Human mode is available with `--human`.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
