@@ -203,6 +203,36 @@ This scanner evaluates repository-relative paths, normalizes `./` prefixes, bloc
 
 It is not integrated automatically yet.
 
+### 3.1 NeoDaemon Healthcheck
+
+Initial standalone component:
+
+```text
+scripts/project/neodaemon_healthcheck_v1.py
+```
+
+This healthcheck is offline-only and read-only. It gives an SSH-friendly local signal for whether NeoDaemon can perform project execution from the current repository state.
+
+V1 checks only local evidence:
+
+- Git is available;
+- current directory is inside the repository;
+- `git status --short` can run;
+- worktree is clean;
+- current branch is `main`;
+- required local tool files are present;
+- required project scripts are present.
+
+It does not perform network, provider, gateway, model, runtime, or service checks in V1.
+
+It is intended to be executed through:
+
+```text
+run_project_script_readonly
+```
+
+and returns JSON with `status`, `health_scope`, `local_can_work_now`, `bottlenecks`, `evidence`, `no_verificado`, `recommended_next_action`, and `checks`.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
