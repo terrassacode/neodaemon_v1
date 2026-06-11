@@ -39,6 +39,7 @@ Allowed actions:
   autopilot_commit
   autopilot_commit_tools_safe
   publish_doc_folder
+  run_project_script_readonly
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -53,6 +54,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit","branch":"feature/example","title":"feat: example","body_file":"/tmp/pr.md","message":"feat: example"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_tools_safe","branch":"feature/example","file":"tools/example.sh","title":"feat: example","message":"feat: example","body":"PR body"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_doc_folder","branch":"docs/example","title":"docs: example","message":"docs: example","body":"PR body"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"run_project_script_readonly","script":"scripts/project/protected_zone_scanner_v1.py","args":["--paths","docs/test.md"]}'
 USAGE
 }
 
@@ -840,6 +842,129 @@ publish_doc_folder() {
   fi
 }
 
+run_project_script_readonly() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+import sys
+
+
+def emit(payload, rc=0):
+    payload.setdefault("action", "run_project_script_readonly")
+    payload.setdefault("safe", False)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False))
+    raise SystemExit(rc)
+
+
+def blocked(summary, **extra):
+    payload = {"status": "BLOCKED", "summary": summary, **extra}
+    emit(payload, 1)
+
+
+def join_terms(*parts):
+    return "".join(parts)
+
+
+repo = os.getcwd()
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    blocked("invalid json request")
+
+script = data.get("script", "")
+argv = data.get("args", [])
+
+if not isinstance(script, str) or not script:
+    blocked("BLOCKED_UNSAFE_SCRIPT_PATH", script=script)
+if script.startswith("/") or ".." in script.split("/") or script.startswith("./"):
+    blocked("BLOCKED_UNSAFE_SCRIPT_PATH", script=script)
+if not script.startswith("scripts/project/") or not script.endswith(".py"):
+    blocked("BLOCKED_UNSAFE_SCRIPT_PATH", script=script)
+
+low = script.lower()
+blocked_terms = [
+    join_terms("to", "ken"),
+    join_terms("sec", "ret"),
+    join_terms("cred", "ential"),
+    join_terms("oa", "uth"),
+    join_terms("au", "th"),
+    join_terms("pass", "word"),
+    join_terms("k", "ey"),
+    ".env",
+]
+if any(term in low for term in blocked_terms):
+    blocked("BLOCKED_SENSITIVE_PATH", script=script)
+
+if not os.path.isfile(os.path.join(repo, script)):
+    blocked("BLOCKED_SCRIPT_NOT_FOUND", script=script)
+
+if not isinstance(argv, list) or not all(isinstance(item, str) for item in argv):
+    blocked("BLOCKED_UNSAFE_ARG", script=script)
+if len(argv) > 64 or any(len(item) > 1000 for item in argv):
+    blocked("BLOCKED_UNSAFE_ARG", script=script)
+
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    blocked("BLOCKED_WORKTREE_STATUS_FAILED", script=script)
+if before.stdout.strip():
+    blocked("BLOCKED_WORKTREE_NOT_CLEAN", script=script)
+
+env = {
+    "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+    "LC_ALL": "C.UTF-8",
+}
+
+try:
+    proc = subprocess.run(
+        ["python3", script, *argv],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        env=env,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    after_timeout = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    blocked(
+        "BLOCKED_TIMEOUT",
+        script=script,
+        stdout=(exc.stdout or "")[:4000],
+        stderr=(exc.stderr or "")[:4000],
+        worktree_clean_before=True,
+        worktree_clean_after=(after_timeout.returncode == 0 and not after_timeout.stdout.strip()),
+    )
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if after.returncode != 0:
+    blocked("BLOCKED_WORKTREE_STATUS_FAILED", script=script, exit_code=proc.returncode)
+if after.stdout.strip():
+    blocked(
+        "BLOCKED_SCRIPT_MUTATED_WORKTREE",
+        script=script,
+        exit_code=proc.returncode,
+        stdout=proc.stdout[:4000],
+        stderr=proc.stderr[:4000],
+        worktree_clean_before=True,
+        worktree_clean_after=False,
+    )
+
+emit({
+    "status": "OK",
+    "script": script,
+    "exit_code": proc.returncode,
+    "stdout": proc.stdout[:4000],
+    "stderr": proc.stderr[:4000],
+    "worktree_clean_before": True,
+    "worktree_clean_after": True,
+    "safe": True,
+}, 0)
+PYJSON
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -896,6 +1021,10 @@ main() {
     publish_doc_folder)
       [ -z "$file$body_file$mode$pr_number$confirmation" ] || die "publish_doc_folder does not accept file/body_file/mode/pr_number/confirmation"
       publish_doc_folder "$branch" "$title" "$message" "$body"
+      ;;
+    run_project_script_readonly)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body" ] || die "run_project_script_readonly accepts only script/args"
+      run_project_script_readonly
       ;;
     *)
       die "unknown action"
