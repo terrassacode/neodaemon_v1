@@ -21,7 +21,12 @@ def add(items: list[dict[str, object]], code: str, detail: str) -> None:
 
 
 def first_context_percent(text: str) -> int | None:
-    matches = re.findall(r"\b(\d{1,3})%\b", text)
+    usage_matches = re.findall(r"\b\d+k/\d+k\s*\((\d{1,3})%\)", text, re.IGNORECASE)
+    usage_values = [int(value) for value in usage_matches if 0 <= int(value) <= 100]
+    if usage_values:
+        return max(usage_values)
+
+    matches = re.findall(r"(?<!\d)(\d{1,3})%(?!\w)", text)
     values = [int(value) for value in matches if 0 <= int(value) <= 100]
     if not values:
         return None
