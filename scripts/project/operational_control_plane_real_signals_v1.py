@@ -11,6 +11,7 @@ No provider, OpenClaw status, runtime, network, or UI signals are read.
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from pathlib import Path
@@ -219,9 +220,74 @@ def next_action(status: str, blockers: list[dict[str, str]], warnings: list[dict
     return "review warnings before starting feature work"
 
 
+def yes_no(value: Any) -> str:
+    if value is True:
+        return "YES"
+    if value is False:
+        return "NO"
+    return "NO VERIFICADO"
+
+
+def warning_codes(payload: dict[str, Any]) -> list[str]:
+    return [item.get("code", "UNKNOWN") for item in payload.get("warnings", []) if isinstance(item, dict)]
+
+
+def blocker_codes(payload: dict[str, Any]) -> list[str]:
+    return [item.get("code", "UNKNOWN") for item in payload.get("blockers", []) if isinstance(item, dict)]
+
+
+def signal_status(payload: dict[str, Any], name: str) -> str:
+    signals = payload.get("signals", {})
+    signal = signals.get(name, {}) if isinstance(signals, dict) else {}
+    status = signal.get("status", "NO_VERIFICADO") if isinstance(signal, dict) else "NO_VERIFICADO"
+    return str(status)
+
+
+def signal_confidence(payload: dict[str, Any], name: str) -> str:
+    signals = payload.get("signals", {})
+    signal = signals.get(name, {}) if isinstance(signals, dict) else {}
+    confidence = signal.get("confidence", "NO_VERIFICADO") if isinstance(signal, dict) else "NO_VERIFICADO"
+    return str(confidence)
+
+
+def format_human(payload: dict[str, Any]) -> str:
+    can_work = payload.get("can_work", {}) if isinstance(payload.get("can_work"), dict) else {}
+    warnings = warning_codes(payload)
+    blockers = blocker_codes(payload)
+    lines = [
+        "OPERATIONAL CONTROL PLANE",
+        "Mode: real-signals-v1",
+        f"Status: {payload.get('status', 'NO_VERIFICADO')}",
+        f"Risk: {payload.get('risk_level', 'UNKNOWN')}",
+        "",
+        "Can work:",
+        f"  local ............... {yes_no(can_work.get('local'))}",
+        f"  start feature ....... {yes_no(can_work.get('start_feature'))}",
+        "  heavy model ......... NOT CONNECTED",
+        "",
+        "Signals:",
+        f"  healthcheck ......... {signal_status(payload, 'healthcheck')}",
+        f"  preflight ........... {signal_status(payload, 'preflight')}",
+        f"  usage dashboard ..... {signal_status(payload, 'usage_dashboard')} / {signal_confidence(payload, 'usage_dashboard')} confidence",
+        "",
+        "Warnings:",
+    ]
+    lines.extend([f"  {code}" for code in warnings] or ["  none"])
+    lines.extend(["", "Blockers:"])
+    lines.extend([f"  {code}" for code in blockers] or ["  none"])
+    lines.extend(["", "Next action:", f"  {payload.get('recommended_next_action', 'none')}"])
+    return "\n".join(lines)
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Operational Control Plane real signals v1")
+    parser.add_argument("--human", action="store_true", help="render a human summary derived from the JSON payload")
+    args = parser.parse_args()
     payload = build_payload()
-    print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
+    if args.human:
+        print(format_human(payload))
+    else:
+        print(json.dumps(payload, ensure_ascii=False)[:OUTPUT_LIMIT])
     return 0
 
 
