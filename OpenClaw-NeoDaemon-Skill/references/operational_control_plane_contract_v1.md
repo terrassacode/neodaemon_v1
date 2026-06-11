@@ -234,6 +234,14 @@ Reason:
 
 Fixtures must exist before the aggregator so defective or misleading signals are not consolidated prematurely.
 
+Initial fixtures live in:
+
+```text
+OpenClaw-NeoDaemon-Skill/references/operational_control_plane_fixtures_v1.md
+```
+
+They are data-only acceptance cases for the future aggregator and do not implement operational logic.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
