@@ -40,6 +40,7 @@ Allowed actions:
   autopilot_commit_tools_safe
   publish_doc_folder
   run_project_script_readonly
+  inspect_openclaw_native_status_readonly
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -55,6 +56,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_tools_safe","branch":"feature/example","file":"tools/example.sh","title":"feat: example","message":"feat: example","body":"PR body"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_doc_folder","branch":"docs/example","title":"docs: example","message":"docs: example","body":"PR body"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"run_project_script_readonly","script":"scripts/project/protected_zone_scanner_v1.py","args":["--paths","docs/test.md"]}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"inspect_openclaw_native_status_readonly","command":"status_usage"}'
 USAGE
 }
 
@@ -965,6 +967,114 @@ emit({
 PYJSON
 }
 
+inspect_openclaw_native_status_readonly() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import re
+import subprocess
+
+
+def term(*parts):
+    return "".join(parts)
+
+
+def clean_text(value):
+    text = value[:4000]
+    patterns = [
+        term("to", "ken"),
+        term("sec", "ret"),
+        term("cred", "ential"),
+        term("pass", "word"),
+        term("k", "ey"),
+        term("oa", "uth"),
+        term("au", "th"),
+        term(".e", "nv"),
+    ]
+    for item in patterns:
+        text = re.sub(item, "[REDACTED]", text, flags=re.IGNORECASE)
+    return text
+
+
+def emit(payload, rc=0):
+    payload.setdefault("action", "inspect_openclaw_native_status_readonly")
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False))
+    raise SystemExit(rc)
+
+
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    emit({"status": "BLOCKED", "summary": "invalid json request"}, 1)
+
+selected = data.get("command", "")
+allowed = {
+    "help": ["openclaw", "--help"],
+    "status": ["openclaw", "status"],
+    "status_usage": ["openclaw", "status", "--usage"],
+}
+if selected not in allowed:
+    emit({"status": "BLOCKED", "summary": "command not allowed", "command": selected}, 1)
+
+repo = os.getcwd()
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    emit({"status": "BLOCKED", "summary": "worktree status failed before command", "command": selected}, 1)
+if before.stdout.strip():
+    emit({"status": "BLOCKED", "summary": "worktree not clean before command", "command": selected, "worktree_clean_before": False}, 1)
+
+env = {
+    "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+    "LC_ALL": "C.UTF-8",
+}
+
+try:
+    proc = subprocess.run(
+        allowed[selected],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        env=env,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    after_timeout = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    emit(
+        {
+            "status": "BLOCKED",
+            "summary": "command timeout",
+            "command": selected,
+            "exit_code": 124,
+            "stdout": clean_text(exc.stdout or ""),
+            "stderr": clean_text(exc.stderr or ""),
+            "worktree_clean_before": True,
+            "worktree_clean_after": after_timeout.returncode == 0 and not after_timeout.stdout.strip(),
+        },
+        1,
+    )
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+after_clean = after.returncode == 0 and not after.stdout.strip()
+
+emit(
+    {
+        "status": "OK" if after_clean else "BLOCKED",
+        "command": selected,
+        "exit_code": proc.returncode,
+        "stdout": clean_text(proc.stdout),
+        "stderr": clean_text(proc.stderr),
+        "worktree_clean_before": True,
+        "worktree_clean_after": after_clean,
+    },
+    0 if after_clean else 1,
+)
+PYJSON
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -985,6 +1095,7 @@ main() {
   confirmation="$(printf '%s' "$request" | json_get confirmation || true)"
   message="$(printf '%s' "$request" | json_get message || true)"
   body="$(printf '%s' "$request" | json_get body || true)"
+  native_command="$(printf '%s' "$request" | json_get command || true)"
 
   case "$action" in
     github_status)
@@ -1023,8 +1134,12 @@ main() {
       publish_doc_folder "$branch" "$title" "$message" "$body"
       ;;
     run_project_script_readonly)
-      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body" ] || die "run_project_script_readonly accepts only script/args"
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "run_project_script_readonly accepts only script/args"
       run_project_script_readonly
+      ;;
+    inspect_openclaw_native_status_readonly)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body" ] || die "inspect_openclaw_native_status_readonly accepts only command"
+      inspect_openclaw_native_status_readonly
       ;;
     *)
       die "unknown action"
