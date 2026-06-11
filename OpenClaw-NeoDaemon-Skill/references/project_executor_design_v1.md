@@ -255,6 +255,20 @@ V1 checks local evidence only: repository validity, `git status --short`, curren
 
 It returns JSON with `status` (`READY`, `DEGRADED`, or `BLOCKED`), `can_start_feature`, `checks`, `blockers`, `warnings`, `evidence`, and `recommended_next_action`.
 
+### 3.3 OpenClaw Status Signal Summary
+
+Initial standalone component:
+
+```text
+scripts/project/openclaw_status_signal_summary_v1.py
+```
+
+This parser is read-only and does not execute OpenClaw. It converts text captured from the controlled native status inspection route into a compact operational signal.
+
+V1 uses only `openclaw status` text. It does not use `openclaw status --usage`.
+
+It returns JSON with `status` (`OK`, `WARNING`, `DEGRADED`, or `NO_VERIFICADO`), `signals`, `warnings`, `checks`, and `recommended_next_action`. Human mode is available with `--human`.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
