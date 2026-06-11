@@ -268,6 +268,8 @@ V1 connects project healthcheck, project preflight, and usage dashboard signals.
 
 Project healthcheck controls only `can_work.local`; project preflight remains the only source for `can_work.start_feature`.
 
+The real-signal adapter also supports `--human`, which renders a human summary derived from the same JSON payload. JSON remains the default output.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
