@@ -41,6 +41,7 @@ Allowed actions:
   publish_doc_folder
   run_project_script_readonly
   inspect_openclaw_native_status_readonly
+  git_create_feature_branch_safe
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -57,6 +58,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_doc_folder","branch":"docs/example","title":"docs: example","message":"docs: example","body":"PR body"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"run_project_script_readonly","script":"scripts/project/protected_zone_scanner_v1.py","args":["--paths","docs/test.md"]}'
   tools/neodaemon_local_executor_v1.sh '{"action":"inspect_openclaw_native_status_readonly","command":"status_usage"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"git_create_feature_branch_safe","slug":"example-feature-v1"}'
 USAGE
 }
 
@@ -1075,6 +1077,63 @@ emit(
 PYJSON
 }
 
+git_create_feature_branch_safe() {
+  slug="$1"
+
+  case "$slug" in
+    ""|-*|*-|*--*)
+      printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_INVALID_SLUG","safe":true,"logs_redacted":true}\n'
+      return 1
+      ;;
+  esac
+
+  printf '%s' "$slug" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' || {
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_INVALID_SLUG","safe":true,"logs_redacted":true}\n'
+    return 1
+  }
+
+  branch="feature/$slug"
+  previous_branch="$(git branch --show-current)"
+
+  before_status="$(git status --porcelain)"
+  if [ -n "$before_status" ]; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_WORKTREE_NOT_CLEAN","branch":"%s","worktree_clean_before":false,"safe":true,"logs_redacted":true}\n' "$branch"
+    return 1
+  fi
+
+  if [ "$previous_branch" != "main" ]; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_NOT_ON_MAIN","branch":"%s","current_branch":"%s","worktree_clean_before":true,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+    return 1
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_LOCAL_BRANCH_EXISTS","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":true,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+    return 1
+  fi
+
+  set +e
+  GIT_TERMINAL_PROMPT=0 timeout 10 git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1
+  remote_rc="$?"
+  set -e
+
+  if [ "$remote_rc" -eq 0 ]; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_REMOTE_BRANCH_EXISTS","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":false,"remote_branch_exists_before":true,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+    return 1
+  fi
+
+  if [ "$remote_rc" -ne 2 ]; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_REMOTE_BRANCH_CHECK_FAILED","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":false,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+    return 1
+  fi
+
+  if ! git switch -c "$branch" >/dev/null; then
+    printf '{"status":"BLOCKED","action":"git_create_feature_branch_safe","summary":"BLOCKED_GIT_SWITCH_FAILED","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":false,"remote_branch_exists_before":false,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+    return 1
+  fi
+
+  printf '{"status":"OK","action":"git_create_feature_branch_safe","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":false,"remote_branch_exists_before":false,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -1096,6 +1155,7 @@ main() {
   message="$(printf '%s' "$request" | json_get message || true)"
   body="$(printf '%s' "$request" | json_get body || true)"
   native_command="$(printf '%s' "$request" | json_get command || true)"
+  slug="$(printf '%s' "$request" | json_get slug || true)"
 
   case "$action" in
     github_status)
@@ -1140,6 +1200,10 @@ main() {
     inspect_openclaw_native_status_readonly)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body" ] || die "inspect_openclaw_native_status_readonly accepts only command"
       inspect_openclaw_native_status_readonly
+      ;;
+    git_create_feature_branch_safe)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "git_create_feature_branch_safe accepts only slug"
+      git_create_feature_branch_safe "$slug"
       ;;
     *)
       die "unknown action"
