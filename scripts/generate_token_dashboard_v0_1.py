@@ -117,6 +117,9 @@ def main():
                         if ts and ts >= window_24h_start:
                             add_usage(last_24h, usage)
 
+                        if ts and previous_24h_start <= ts < window_24h_start:
+                            add_usage(previous_24h, usage)
+
                         if ts and ts >= window_60m_start:
                             add_usage(last_60m, usage)
 
