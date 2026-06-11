@@ -250,6 +250,14 @@ scripts/project/operational_control_plane_aggregator_v1.py
 
 It validates fixture expectations before any live signals are consumed.
 
+Human summary mode is available with:
+
+```text
+--human
+```
+
+The human summary is derived from the same fixtures-only validation payload and must not recalculate or reinterpret source rules.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
