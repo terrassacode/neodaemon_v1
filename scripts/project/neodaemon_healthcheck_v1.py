@@ -45,7 +45,66 @@ def add(items: list[dict[str, str]], code: str, detail: str) -> None:
     items.append({"code": code, "detail": detail})
 
 
-def main() -> int:
+def render_human(result: dict[str, object]) -> str:
+    checks = result.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+
+    can_work = result.get("local_can_work_now")
+    can_work_text = "yes" if can_work is True else "no" if can_work is False else "unknown"
+
+    worktree = checks.get("worktree_clean")
+    worktree_text = "clean" if worktree is True else "dirty" if worktree is False else "unknown"
+
+    tools = checks.get("critical_tools_present")
+    tools_text = "OK" if tools is True else "BLOCKED" if tools is False else "unknown"
+
+    scripts = checks.get("critical_project_scripts_present")
+    scripts_text = "OK" if scripts is True else "BLOCKED" if scripts is False else "unknown"
+
+    branch = checks.get("branch") or "unknown"
+    notes = "external connectivity omitted in v1"
+
+    return "\n".join(
+        [
+            f"NEODAEMON LOCAL HEALTH: {result.get('status', 'NO_VERIFICADO')}",
+            f"can_work_now: {can_work_text}",
+            f"scope: {result.get('health_scope', 'local_offline_only')}",
+            f"branch: {branch}",
+            f"worktree: {worktree_text}",
+            f"critical_tools: {tools_text}",
+            f"critical_project_scripts: {scripts_text}",
+            f"next_action: {result.get('recommended_next_action', 'review healthcheck result')}",
+            f"notes: {notes}",
+        ]
+    )
+
+
+def emit(result: dict[str, object], human: bool) -> None:
+    if human:
+        print(render_human(result)[:OUTPUT_LIMIT])
+    else:
+        print(json.dumps(result, ensure_ascii=False)[:OUTPUT_LIMIT])
+
+
+def main(argv: list[str]) -> int:
+    if argv not in ([], ["--human"]):
+        result = {
+            "status": "BLOCKED",
+            "health_scope": "local_offline_only",
+            "local_can_work_now": False,
+            "bottlenecks": [{"code": "unsupported_argument", "detail": "only --human is supported"}],
+            "evidence": [],
+            "no_verificado": [],
+            "recommended_next_action": "run without arguments or with --human",
+            "checks": {},
+            "safe": True,
+            "logs_redacted": True,
+        }
+        emit(result, "--human" in argv)
+        return 0
+
+    human = argv == ["--human"]
     cwd = Path.cwd()
     bottlenecks: list[dict[str, str]] = []
     evidence: list[dict[str, str]] = []
@@ -79,7 +138,7 @@ def main() -> int:
         result["status"] = "BLOCKED"
         result["local_can_work_now"] = False
         result["recommended_next_action"] = "restore git availability before project execution"
-        print(json.dumps(result, ensure_ascii=False)[:OUTPUT_LIMIT])
+        emit(result, human)
         return 0
 
     rc, root_out, _ = run_git(["rev-parse", "--show-toplevel"], cwd)
@@ -88,7 +147,7 @@ def main() -> int:
         result["status"] = "BLOCKED"
         result["local_can_work_now"] = False
         result["recommended_next_action"] = "run healthcheck from the neodaemon repository root"
-        print(json.dumps(result, ensure_ascii=False)[:OUTPUT_LIMIT])
+        emit(result, human)
         return 0
 
     repo_root = Path(root_out).resolve()
@@ -101,7 +160,7 @@ def main() -> int:
         result["status"] = "BLOCKED"
         result["local_can_work_now"] = False
         result["recommended_next_action"] = "repair git repository state before project execution"
-        print(json.dumps(result, ensure_ascii=False)[:OUTPUT_LIMIT])
+        emit(result, human)
         return 0
 
     worktree_clean = not bool(status_out)
@@ -155,9 +214,9 @@ def main() -> int:
         result["local_can_work_now"] = True
         result["recommended_next_action"] = "continue with local project execution"
 
-    print(json.dumps(result, ensure_ascii=False)[:OUTPUT_LIMIT])
+    emit(result, human)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

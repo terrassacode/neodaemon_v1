@@ -233,6 +233,14 @@ run_project_script_readonly
 
 and returns JSON with `status`, `health_scope`, `local_can_work_now`, `bottlenecks`, `evidence`, `no_verificado`, `recommended_next_action`, and `checks`.
 
+For fast human SSH interpretation, the same script also supports:
+
+```text
+--human
+```
+
+Human mode uses the same internal health result as JSON mode and prints a compact summary with status, local work capability, scope, branch, worktree state, critical tools, critical project scripts, recommended next action, and the V1 note that external connectivity is omitted.
+
 ### 4. Validation Router
 
 Chooses validations by file type and perimeter.
