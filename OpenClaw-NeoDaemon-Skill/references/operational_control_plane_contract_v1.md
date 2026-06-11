@@ -264,9 +264,11 @@ The first real-signal adapter lives in:
 scripts/project/operational_control_plane_real_signals_v1.py
 ```
 
-V1 connects project healthcheck, project preflight, and usage dashboard signals. Heavy model and OpenClaw status remain explicitly not connected.
+V1 connects project healthcheck, project preflight, usage dashboard, and controlled OpenClaw status signals. Heavy model remains explicitly not connected.
 
 Project healthcheck controls only `can_work.local`; project preflight remains the only source for `can_work.start_feature`.
+
+Controlled OpenClaw status is read only through `inspect_openclaw_native_status_readonly` with `command=status`, then summarized by `scripts/project/openclaw_status_signal_summary_v1.py`. It must not modify `can_work.local`, `can_work.start_feature`, or `can_work.heavy_model`.
 
 The real-signal adapter also supports `--human`, which renders a human summary derived from the same JSON payload. JSON remains the default output.
 
