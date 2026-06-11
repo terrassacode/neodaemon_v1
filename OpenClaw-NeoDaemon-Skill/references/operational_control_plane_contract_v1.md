@@ -264,7 +264,9 @@ The first real-signal adapter lives in:
 scripts/project/operational_control_plane_real_signals_v1.py
 ```
 
-V1 connects only project preflight and usage dashboard signals. Heavy model, local healthcheck, and OpenClaw status remain explicitly not connected.
+V1 connects project healthcheck, project preflight, and usage dashboard signals. Heavy model and OpenClaw status remain explicitly not connected.
+
+Project healthcheck controls only `can_work.local`; project preflight remains the only source for `can_work.start_feature`.
 
 ## Acceptance Criteria For This Contract
 
