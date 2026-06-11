@@ -31,6 +31,8 @@ def empty_bucket():
     return {
         "input_tokens": 0,
         "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
         "total_tokens": 0,
         "usage_entries": 0
     }
@@ -38,12 +40,18 @@ def empty_bucket():
 def add_usage(bucket, usage):
     inp = usage.get("input") or usage.get("inputTokens") or 0
     out = usage.get("output") or usage.get("outputTokens") or 0
+    cache_read = usage.get("cacheRead") or usage.get("cache_read") or 0
+    cache_write = usage.get("cacheWrite") or usage.get("cache_write") or 0
     raw_total = usage.get("totalTokens") or usage.get("total_tokens") or 0
 
     if not isinstance(inp, (int, float)):
         inp = 0
     if not isinstance(out, (int, float)):
         out = 0
+    if not isinstance(cache_read, (int, float)):
+        cache_read = 0
+    if not isinstance(cache_write, (int, float)):
+        cache_write = 0
     if not isinstance(raw_total, (int, float)):
         raw_total = 0
 
@@ -56,6 +64,8 @@ def add_usage(bucket, usage):
 
     bucket["input_tokens"] += int(inp)
     bucket["output_tokens"] += int(out)
+    bucket["cache_read_tokens"] += int(cache_read)
+    bucket["cache_write_tokens"] += int(cache_write)
     bucket["total_tokens"] += int(total)
     bucket["usage_entries"] += 1
 
@@ -157,6 +167,14 @@ def main():
         "updated_at": now.isoformat(),
         "total": total,
         "last_24h": last_24h,
+        "usage_breakdown": {
+            "input_tokens": total["input_tokens"],
+            "output_tokens": total["output_tokens"],
+            "cache_read_tokens": total["cache_read_tokens"],
+            "cache_write_tokens": total["cache_write_tokens"],
+            "visible_total_tokens": total["total_tokens"],
+            "note": "visible_total_tokens is input + output; provider totalTokens may include cacheRead/cacheWrite."
+        },
         "rolling_24h_comparison": {
             "current_24h_tokens": current_tokens,
             "previous_24h_tokens": previous_tokens,
