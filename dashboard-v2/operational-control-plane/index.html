@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operational Control Plane</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">Operational Control Plane</p>
+      <h1>SALUD DEL SISTEMA</h1>
+      <p id="snapshot-note" class="snapshot-note">Estado generado bajo demanda</p>
+    </header>
+
+    <section id="missing-state" class="empty-state" hidden>
+      Estado no generado todavía. Ejecuta el generador de snapshot.
+    </section>
+
+    <section id="dashboard" hidden>
+      <section class="decision-grid" aria-label="Respuestas rápidas">
+        <article id="local-card" class="decision-card">
+          <span>¿Puedo trabajar?</span>
+          <strong id="local-value">No verificado</strong>
+        </article>
+        <article id="feature-card" class="decision-card">
+          <span>¿Puedo iniciar una feature?</span>
+          <strong id="feature-value">No verificado</strong>
+        </article>
+        <article id="blocked-card" class="decision-card">
+          <span>¿Hay algo bloqueado?</span>
+          <strong id="blocked-value">No verificado</strong>
+        </article>
+        <article id="action-card" class="decision-card decision-card-wide">
+          <span>¿Qué debo hacer ahora?</span>
+          <strong id="action-value">Revisar estado</strong>
+        </article>
+      </section>
+
+      <section class="summary-strip" aria-label="Estado global">
+        <div><span>Status</span><strong id="global-status">NO VERIFICADO</strong></div>
+        <div><span>Riesgo</span><strong id="risk-level">UNKNOWN</strong></div>
+        <div><span>Modo recomendado</span><strong id="recommended-mode">No verificado</strong></div>
+      </section>
+
+      <section class="signal-grid" aria-label="Señales principales">
+        <article id="healthcheck" class="signal-card">
+          <div class="dot"></div>
+          <h2>Healthcheck</h2>
+          <p class="human">Sistema local no verificado</p>
+          <p class="detail">Sin lectura</p>
+        </article>
+        <article id="preflight" class="signal-card">
+          <div class="dot"></div>
+          <h2>Preflight</h2>
+          <p class="human">No iniciar feature</p>
+          <p class="detail">Sin lectura</p>
+        </article>
+        <article id="openclaw" class="signal-card">
+          <div class="dot"></div>
+          <h2>OpenClaw</h2>
+          <p class="human">OpenClaw no verificado</p>
+          <p class="detail">Sin lectura</p>
+        </article>
+        <article id="usage" class="signal-card">
+          <div class="dot"></div>
+          <h2>Uso de recursos</h2>
+          <p class="human">Uso no verificado</p>
+          <p class="detail">Sin lectura</p>
+        </article>
+        <article id="heavy" class="signal-card">
+          <div class="dot"></div>
+          <h2>Modelo pesado</h2>
+          <p class="human">No verificado</p>
+          <p class="detail">Sin lectura</p>
+        </article>
+      </section>
+
+      <section class="lists">
+        <article>
+          <h2>Blockers</h2>
+          <ul id="blockers"></ul>
+        </article>
+        <article>
+          <h2>Warnings</h2>
+          <ul id="warnings"></ul>
+        </article>
+      </section>
+
+      <details class="technical">
+        <summary>Detalles técnicos</summary>
+        <div class="technical-grid">
+          <section>
+            <h3>Staleness</h3>
+            <ul id="staleness"></ul>
+          </section>
+          <section>
+            <h3>Confidence</h3>
+            <ul id="confidence"></ul>
+          </section>
+          <section>
+            <h3>Señales individuales</h3>
+            <ul id="signals"></ul>
+          </section>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --text: #172033;
+  --muted: #667085;
+  --line: #e4e7ec;
+  --green: #15803d;
+  --green-bg: #dcfce7;
+  --yellow: #a16207;
+  --yellow-bg: #fef3c7;
+  --red: #b42318;
+  --red-bg: #fee4e2;
+  --gray: #475467;
+  --gray-bg: #eef2f6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.shell {
+  width: min(1120px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+}
+
+.hero {
+  background: linear-gradient(135deg, #111827, #1e3a5f);
+  color: white;
+  border-radius: 28px;
+  padding: 30px;
+  margin-bottom: 20px;
+  box-shadow: 0 18px 42px rgba(16, 24, 40, 0.16);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #bfdbfe;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  line-height: 0.95;
+}
+
+.snapshot-note {
+  margin: 16px 0 0;
+  color: #dbeafe;
+  font-weight: 700;
+}
+
+.empty-state {
+  border: 1px solid #fde68a;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  border-radius: 20px;
+  padding: 22px;
+  font-weight: 800;
+}
+
+.decision-grid, .signal-grid, .lists, .summary-strip, .technical-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.decision-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.signal-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.lists, .technical-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.decision-card, .signal-card, .summary-strip > div, .lists article, .technical {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+}
+
+.decision-card span, .summary-strip span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.decision-card strong, .summary-strip strong {
+  display: block;
+  font-size: clamp(1.35rem, 3vw, 2.1rem);
+  line-height: 1.1;
+}
+
+.signal-card {
+  min-height: 164px;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--gray);
+  margin-bottom: 14px;
+}
+
+.signal-card h2, .lists h2, .technical h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.human {
+  margin: 0;
+  font-weight: 850;
+  font-size: 1.05rem;
+}
+
+.detail {
+  color: var(--muted);
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+}
+
+.lists {
+  margin-top: 16px;
+}
+
+ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+li + li {
+  margin-top: 6px;
+}
+
+.technical {
+  margin-top: 16px;
+}
+
+.technical summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.technical-grid {
+  margin-top: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tone-green {
+  border-color: #86efac;
+  background: linear-gradient(180deg, var(--panel), var(--green-bg));
+}
+.tone-green .dot { background: var(--green); }
+.tone-green strong, .tone-green .human { color: var(--green); }
+
+.tone-yellow {
+  border-color: #fcd34d;
+  background: linear-gradient(180deg, var(--panel), var(--yellow-bg));
+}
+.tone-yellow .dot { background: var(--yellow); }
+.tone-yellow strong, .tone-yellow .human { color: var(--yellow); }
+
+.tone-red {
+  border-color: #fda29b;
+  background: linear-gradient(180deg, var(--panel), var(--red-bg));
+}
+.tone-red .dot { background: var(--red); }
+.tone-red strong, .tone-red .human { color: var(--red); }
+
+.tone-gray {
+  border-color: #cbd5e1;
+  background: linear-gradient(180deg, var(--panel), var(--gray-bg));
+}
+.tone-gray .dot { background: var(--gray); }
+.tone-gray strong, .tone-gray .human { color: var(--gray); }
+
+@media (max-width: 960px) {
+  .decision-grid, .signal-grid, .summary-strip, .technical-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .decision-grid, .signal-grid, .summary-strip, .lists, .technical-grid {
+    grid-template-columns: 1fr;
+  }
+}
