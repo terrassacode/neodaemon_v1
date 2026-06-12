@@ -31,6 +31,7 @@ function toneClass(tone) {
 }
 
 function setTone(node, tone) {
+  if (!node) return;
   node.classList.remove("oc-tone-green", "oc-tone-yellow", "oc-tone-red", "oc-tone-gray");
   node.classList.add(toneClass(tone));
 }
@@ -115,6 +116,7 @@ function codeItems(items, emptyText) {
 
 function replaceList(id, values) {
   const node = $(id);
+  if (!node) return;
   node.replaceChildren();
   values.forEach((value) => {
     const li = document.createElement("li");
@@ -130,6 +132,7 @@ function renderIcons() {
 function renderSignals(snapshot) {
   const names = ["healthcheck", "preflight", "openclaw_status", "usage_dashboard", "heavy_model"];
   const list = $("signal-list");
+  if (!list) return;
   list.replaceChildren();
   names.forEach((name) => {
     const item = name === "heavy_model" ? { status: hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1") ? "WARNING" : "OK" } : signal(snapshot, name);
@@ -162,29 +165,42 @@ function render(snapshot) {
   const h = hero(snapshot.status);
   const tone = statusTone(snapshot.status);
   const icon = $("hero-icon");
-  icon.setAttribute("data-lucide", h.icon);
-  $("hero-title").textContent = h.title;
-  $("hero-message").textContent = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")
-    ? `${h.message} Los modelos avanzados todavía no están conectados.`
-    : h.message;
+  if (icon) {
+    icon.setAttribute("data-lucide", h.icon);
+  }
+  const heroTitle = $("hero-title");
+  if (heroTitle) heroTitle.textContent = h.title;
+  const heroMessage = $("hero-message");
+  if (heroMessage) {
+    heroMessage.textContent = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")
+      ? `${h.message} Los modelos avanzados todavía no están conectados.`
+      : h.message;
+  }
   setTone($("hero-status"), tone);
   setTone($("hero-icon-wrap"), tone);
 
-  $("meta-updated").textContent = updateTime(snapshot);
-  $("meta-generated").textContent = generatedAt(snapshot);
-  $("meta-status").textContent = human(snapshot.status);
+  const metaUpdated = $("meta-updated");
+  if (metaUpdated) metaUpdated.textContent = updateTime(snapshot);
+  const metaGenerated = $("meta-generated");
+  if (metaGenerated) metaGenerated.textContent = generatedAt(snapshot);
+  const metaStatus = $("meta-status");
+  if (metaStatus) metaStatus.textContent = human(snapshot.status);
 
-  $("work-value").textContent = boolText(snapshot.can_work?.local);
+  const workValue = $("work-value");
+  if (workValue) workValue.textContent = boolText(snapshot.can_work?.local);
   setTone($("work-card"), boolTone(snapshot.can_work?.local));
 
-  $("feature-value").textContent = boolText(snapshot.can_work?.start_feature);
+  const featureValue = $("feature-value");
+  if (featureValue) featureValue.textContent = boolText(snapshot.can_work?.start_feature);
   setTone($("feature-card"), boolTone(snapshot.can_work?.start_feature));
 
   const blockers = Array.isArray(snapshot.blockers) ? snapshot.blockers : [];
-  $("blockers-value").textContent = blockers.length ? "Sí" : "No";
+  const blockersValue = $("blockers-value");
+  if (blockersValue) blockersValue.textContent = blockers.length ? "Sí" : "No";
   setTone($("blockers-card"), blockers.length ? "red" : "green");
 
-  $("mode-value").textContent = human(snapshot.recommended_mode);
+  const modeValue = $("mode-value");
+  if (modeValue) modeValue.textContent = human(snapshot.recommended_mode);
   setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : tone);
 
   renderSignals(snapshot);
@@ -192,13 +208,14 @@ function render(snapshot) {
   replaceList("warnings", codeItems(snapshot.warnings, "No hay avisos pendientes."));
   renderTechnical(snapshot);
 
-  $("missing-state").classList.add("hidden");
-  $("dashboard").classList.remove("hidden");
+  $("missing-state")?.classList.add("hidden");
+  $("dashboard")?.classList.remove("hidden");
   renderIcons();
 }
 
 function initTheme() {
   const toggle = $("theme-toggle");
+  if (!toggle) return;
   const saved = window.localStorage.getItem(THEME_KEY);
   const dark = saved ? saved === "dark" : true;
   document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -255,10 +272,13 @@ async function loadSnapshot() {
       throw error;
     }
   } catch (_error) {
-    $("dashboard").classList.add("hidden");
-    $("missing-state").classList.remove("hidden");
-    $("missing-state").querySelector("strong").textContent = debugError.reason;
-    $("missing-state").querySelector("p").textContent = debugError.message;
+    $("dashboard")?.classList.add("hidden");
+    const missingState = $("missing-state");
+    missingState?.classList.remove("hidden");
+    const title = missingState?.querySelector("strong");
+    if (title) title.textContent = debugError.reason;
+    const message = missingState?.querySelector("p");
+    if (message) message.textContent = debugError.message;
     renderIcons();
   }
 }
