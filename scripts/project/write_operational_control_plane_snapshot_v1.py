@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write Operational Control Plane snapshot v1.
 
-Generates a local live artifact for future dashboard consumers.
+Generates the active live artifact for future dashboard consumers.
 The only source of truth is operational_control_plane_real_signals_v1.py.
 This script does not duplicate or recalculate Operational Control Plane rules.
 """
@@ -16,7 +16,7 @@ from typing import Any
 
 SCHEMA_VERSION = "operational_control_plane.v1"
 SOURCE_SCRIPT = Path("scripts/project/operational_control_plane_real_signals_v1.py")
-SNAPSHOT_PATH = Path("dashboard-v2/data/operational_control_plane_v1.json")
+SNAPSHOT_PATH = Path("/openclaw/workspace/main/dashboard-v2/data/operational_control_plane_v1.json")
 REQUIRED_KEYS = {
     "schema_version",
     "status",
