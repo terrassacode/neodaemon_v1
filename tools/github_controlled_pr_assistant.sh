@@ -282,6 +282,10 @@ require_safe_doc_folder_path() {
       ;;
     dashboard-v2/operational-control-plane/README.md)
       ;;
+    dashboard-v2/operational-control-plane/vendor/tailwind.css)
+      ;;
+    dashboard-v2/operational-control-plane/vendor/lucide.min.js)
+      ;;
     scripts/project/*.py)
       ;;
     task_manager/README.md)
@@ -299,7 +303,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, and exact Operational Control Plane dashboard files are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, exact Operational Control Plane dashboard files, and exact Operational Control Plane vendor files are allowed: $file"
       ;;
   esac
 
@@ -327,7 +331,7 @@ validate_doc_folder_publish_file() {
     *.md)
       test -f "$file" || die "doc folder file not found: $file"
       ;;
-    dashboard-v2/operational-control-plane.html|dashboard-v2/js/operational-control-plane.js|dashboard-v2/css/operational-control-plane.css|dashboard-v2/operational-control-plane/index.html|dashboard-v2/operational-control-plane/app.js|dashboard-v2/operational-control-plane/style.css|dashboard-v2/operational-control-plane/README.md)
+    dashboard-v2/operational-control-plane.html|dashboard-v2/js/operational-control-plane.js|dashboard-v2/css/operational-control-plane.css|dashboard-v2/operational-control-plane/index.html|dashboard-v2/operational-control-plane/app.js|dashboard-v2/operational-control-plane/style.css|dashboard-v2/operational-control-plane/README.md|dashboard-v2/operational-control-plane/vendor/tailwind.css|dashboard-v2/operational-control-plane/vendor/lucide.min.js)
       test -f "$file" || die "dashboard file not found: $file"
       ;;
     task_manager/projects/neodaemon.json)
