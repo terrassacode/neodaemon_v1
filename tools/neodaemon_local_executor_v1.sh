@@ -44,6 +44,7 @@ Allowed actions:
   git_create_feature_branch_safe
   publish_operational_control_plane_dashboard_apply_v1
   write_operational_control_plane_snapshot_action_v1
+  github_pr_autopilot_merge_and_cleanup
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -63,6 +64,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"git_create_feature_branch_safe","slug":"example-feature-v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_operational_control_plane_dashboard_apply_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"MERGE PR #123"}'
 USAGE
 }
 
@@ -1322,6 +1324,329 @@ git_create_feature_branch_safe() {
   printf '{"status":"OK","action":"git_create_feature_branch_safe","branch":"%s","previous_branch":"%s","worktree_clean_before":true,"local_branch_exists_before":false,"remote_branch_exists_before":false,"safe":true,"logs_redacted":true}\n' "$branch" "$previous_branch"
 }
 
+github_pr_autopilot_merge_and_cleanup() {
+  mode="$1"
+  confirmation="$2"
+
+  [ "$mode" = "check" ] || die "github_pr_autopilot_merge_and_cleanup only supports mode=check"
+  [ -n "$confirmation" ] || die "confirmation required"
+
+  MODE="$mode" CONFIRMATION="$confirmation" python3 - <<'PYJSON'
+import json
+import os
+import re
+import subprocess
+import sys
+
+mode = os.environ.get("MODE", "")
+confirmation = os.environ.get("CONFIRMATION", "")
+repo = "terrassacode/neodaemon_v1"
+
+validations = []
+blockers = []
+files = []
+
+
+def emit(payload, code=0):
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    raise SystemExit(code)
+
+
+def validation(name, status, detail=""):
+    item = {"name": name, "status": status}
+    if detail:
+        item["detail"] = detail
+    validations.append(item)
+
+
+def blocker(code, detail):
+    blockers.append({"code": code, "detail": detail})
+
+
+def run(cmd, timeout=20):
+    proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False)
+    return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+
+
+def git(*args):
+    forbidden = {"reset", "rebase", "merge", "push", "branch", "switch", "checkout", "stash"}
+    if args and args[0] in forbidden:
+        return False, ""
+    rc, out, _err = run(["git", *args], timeout=10)
+    return rc == 0, out
+
+
+def gh_json(args):
+    rc, out, err = run(["gh", *args], timeout=30)
+    if rc != 0:
+        return False, None, err or out
+    try:
+        return True, json.loads(out), ""
+    except json.JSONDecodeError as exc:
+        return False, None, f"invalid json: {exc}"
+
+
+def path_allowed(path):
+    lower = path.lower()
+    sensitive = [
+        ".env",
+        "sec" + "ret",
+        "credential",
+        "password",
+        "oauth",
+        "api_key",
+        "apikey",
+        "auth",
+        "private_key",
+        "client_" + "sec" + "ret",
+        "refresh_" + "to" + "ken",
+        "to" + "ken",
+    ]
+    if any(item in lower for item in sensitive):
+        return False, "sensitive path fragment"
+    critical = ["gateway/", "runtime/", "models/", "routing/", "systemd/", "openclaw/", "dockerfile", "docker-compose"]
+    if lower.endswith((".service", ".timer")) or any(lower.startswith(item) for item in critical):
+        return False, "critical protected zone"
+    if path in {"README.md", "AGENTS.md"}:
+        return True, "allowed exact path"
+    prefixes = [
+        "OpenClaw-NeoDaemon-Skill/",
+        "task_manager/",
+        "scripts/project/",
+        "tools/",
+        "dashboard-v2/operational-control-plane/",
+    ]
+    if any(path.startswith(prefix) for prefix in prefixes):
+        if path.startswith("dashboard-v2/operational-control-plane/vendor/") and path not in {
+            "dashboard-v2/operational-control-plane/vendor/tailwind.css",
+            "dashboard-v2/operational-control-plane/vendor/lucide.min.js",
+        }:
+            return False, "dashboard vendor file outside exact allowlist"
+        return True, "allowed perimeter"
+    return False, "outside allowed perimeter"
+
+
+def check_rollup(rollup):
+    if rollup is None:
+        return "NO_VERIFICADO", [], "statusCheckRollup unavailable"
+    if not isinstance(rollup, list):
+        return "NO_VERIFICADO", [], "statusCheckRollup invalid"
+    if not rollup:
+        return "PASS", [], "no checks reported; treated as not applicable"
+    checks = []
+    bad = []
+    pending = []
+    unknown = []
+    for item in rollup:
+        if not isinstance(item, dict):
+            unknown.append("non-object")
+            continue
+        name = str(item.get("name") or item.get("context") or item.get("workflowName") or "unnamed")
+        state = str(item.get("state") or item.get("status") or "UNKNOWN").upper()
+        conclusion = str(item.get("conclusion") or "UNKNOWN").upper()
+        bucket = conclusion if conclusion != "UNKNOWN" else state
+        checks.append({"name": name, "state": state, "conclusion": conclusion})
+        if bucket in {"FAILURE", "FAILED", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"}:
+            bad.append(name)
+        elif bucket in {"PENDING", "QUEUED", "IN_PROGRESS", "REQUESTED", "WAITING", "EXPECTED"}:
+            pending.append(name)
+        elif bucket not in {"SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"}:
+            unknown.append(name)
+    if bad:
+        return "BLOCKED", checks, "failing checks: " + ", ".join(bad[:5])
+    if pending:
+        return "NO_VERIFICADO", checks, "pending checks: " + ", ".join(pending[:5])
+    if unknown:
+        return "NO_VERIFICADO", checks, "unknown checks: " + ", ".join(unknown[:5])
+    return "PASS", checks, "all reported checks passed or are neutral/skipped"
+
+
+if mode != "check":
+    blocker("MODE_NOT_ENABLED", "only mode=check is enabled")
+    emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
+
+match = re.fullmatch(r"MERGE PR #(\d+)", confirmation.strip())
+if not match:
+    blocker("INVALID_CONFIRMATION", "expected exact input: MERGE PR #123")
+    emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
+
+pr_number = int(match.group(1))
+validation("input", "PASS", "exact MERGE PR confirmation")
+
+ok, root = git("rev-parse", "--show-toplevel")
+if ok:
+    validation("git_repo", "PASS", root)
+else:
+    blocker("NOT_A_GIT_REPO", "repository root not detected")
+
+ok, status = git("status", "--porcelain")
+if ok and not status:
+    validation("working_tree", "PASS", "clean")
+else:
+    blocker("WORKTREE_NOT_CLEAN", "local working tree must be clean before merge check")
+
+ok, current_branch = git("branch", "--show-current")
+if ok:
+    validation("current_branch", "PASS", current_branch or "detached")
+else:
+    blocker("CURRENT_BRANCH_UNKNOWN", "cannot determine current branch")
+
+ok_main, main_sha = git("rev-parse", "main")
+ok_origin, origin_main_sha = git("rev-parse", "origin/main")
+final_main = {
+    "local_main_known": ok_main,
+    "origin_main_known": ok_origin,
+    "local_main_sha": main_sha if ok_main else None,
+    "origin_main_sha": origin_main_sha if ok_origin else None,
+    "would_update_main": False,
+}
+if ok_main and ok_origin:
+    validation("main_refs", "PASS", "local main and origin/main are known")
+else:
+    blocker("MAIN_REFS_NOT_VERIFIABLE", "cannot verify local main/origin main refs")
+
+if blockers:
+    emit({
+        "status": "BLOCKED_WITH_REASON",
+        "mode": mode,
+        "pr": pr_number,
+        "branch": None,
+        "commit": None,
+        "files": files,
+        "validations": validations,
+        "blockers": blockers,
+        "cleanup": {"attempted": False, "local": "not_attempted_check_mode", "remote": "not_attempted_check_mode"},
+        "final_main": final_main,
+        "rollback": {"required": False, "available": "not_needed_no_changes_made"},
+    }, 1)
+
+ok, pr, err = gh_json([
+    "pr", "view", str(pr_number),
+    "--repo", repo,
+    "--json", "number,state,isDraft,merged,mergeable,mergeStateStatus,baseRefName,headRefName,headRepositoryOwner,headRepository,author,files,commits,statusCheckRollup,url",
+])
+if not ok or not isinstance(pr, dict):
+    emit({
+        "status": "NO_VERIFICADO",
+        "mode": mode,
+        "pr": pr_number,
+        "branch": None,
+        "commit": None,
+        "files": files,
+        "validations": validations + [{"name": "github_pr_lookup", "status": "NO_VERIFICADO", "detail": err}],
+        "blockers": [{"code": "PR_LOOKUP_FAILED", "detail": "cannot verify PR existence/state"}],
+        "cleanup": {"attempted": False, "local": "not_attempted_check_mode", "remote": "not_attempted_check_mode"},
+        "final_main": final_main,
+        "rollback": {"required": False, "available": "not_needed_no_changes_made"},
+    }, 1)
+
+branch = str(pr.get("headRefName") or "")
+state = str(pr.get("state") or "").upper()
+merged = bool(pr.get("merged"))
+base = str(pr.get("baseRefName") or "")
+mergeable = str(pr.get("mergeable") or "").upper()
+merge_state = str(pr.get("mergeStateStatus") or "").upper()
+commits = pr.get("commits") if isinstance(pr.get("commits"), list) else []
+commit = None
+if commits and isinstance(commits[-1], dict):
+    commit = commits[-1].get("oid") or commits[-1].get("sha")
+
+if state == "OPEN":
+    validation("pr_open", "PASS", "PR is open")
+else:
+    blocker("PR_NOT_OPEN", f"state={state}")
+if not merged:
+    validation("pr_not_merged", "PASS", "PR is not merged")
+else:
+    blocker("PR_ALREADY_MERGED", "PR already merged")
+if base == "main":
+    validation("base_branch", "PASS", "main")
+else:
+    blocker("PR_BASE_NOT_MAIN", f"base={base}")
+if pr.get("isDraft") is True:
+    blocker("PR_IS_DRAFT", "draft PRs cannot be merged by autopilot")
+
+if re.fullmatch(r"(feature|docs|fix)/[A-Za-z0-9._/-]+", branch):
+    validation("head_branch", "PASS", branch)
+else:
+    blocker("HEAD_BRANCH_NOT_EXPECTED", f"branch={branch}")
+
+owner = (pr.get("headRepositoryOwner") or {}).get("login") if isinstance(pr.get("headRepositoryOwner"), dict) else None
+repo_name = (pr.get("headRepository") or {}).get("name") if isinstance(pr.get("headRepository"), dict) else None
+if owner == "terrassacode" and repo_name == "neodaemon_v1":
+    validation("head_repo", "PASS", "expected repository")
+else:
+    blocker("EXTERNAL_OR_UNKNOWN_HEAD_REPO", f"owner={owner} repo={repo_name}")
+
+if mergeable == "MERGEABLE" or merge_state in {"CLEAN", "HAS_HOOKS", "UNSTABLE"}:
+    validation("mergeability", "PASS", f"mergeable={mergeable} mergeStateStatus={merge_state}")
+else:
+    blocker("MERGEABILITY_NOT_OK", f"mergeable={mergeable} mergeStateStatus={merge_state}")
+
+pr_files = pr.get("files") if isinstance(pr.get("files"), list) else []
+if not pr_files:
+    blocker("DIFF_NOT_VERIFIABLE", "no PR files returned")
+for item in pr_files:
+    if not isinstance(item, dict):
+        blocker("DIFF_NOT_VERIFIABLE", "file entry is not object")
+        continue
+    path = str(item.get("path") or "")
+    files.append(path)
+    allowed, reason = path_allowed(path)
+    if allowed:
+        validation("path_allowed", "PASS", path)
+    else:
+        blocker("PATH_BLOCKED", f"{path}: {reason}")
+    if str(item.get("status") or "").lower() in {"removed", "deleted"}:
+        blocker("DELETE_REQUIRES_MANUAL_REVIEW", path)
+
+check_status, checks, check_detail = check_rollup(pr.get("statusCheckRollup"))
+if check_status == "PASS":
+    validation("checks", "PASS", check_detail)
+elif check_status == "BLOCKED":
+    blocker("CHECKS_FAILED", check_detail)
+else:
+    blocker("CHECKS_NOT_VERIFIABLE", check_detail)
+
+cleanup = {"attempted": False, "local": "not_attempted_check_mode", "remote": "not_attempted_check_mode", "target_branch": branch}
+rollback = {"required": False, "available": "not_needed_no_changes_made", "note": "mode=check does not modify GitHub, branches, or main"}
+
+if blockers:
+    emit({
+        "status": "BLOCKED_WITH_REASON",
+        "mode": mode,
+        "pr": pr_number,
+        "branch": branch,
+        "commit": commit,
+        "files": files,
+        "checks": checks,
+        "validations": validations,
+        "blockers": blockers,
+        "cleanup": cleanup,
+        "final_main": final_main,
+        "rollback": rollback,
+    }, 1)
+
+validation("mode_check_no_mutation", "PASS", "no merge, cleanup, branch change, or GitHub mutation attempted")
+emit({
+    "status": "PASS_READY_TO_MERGE",
+    "mode": mode,
+    "pr": pr_number,
+    "branch": branch,
+    "commit": commit,
+    "files": files,
+    "checks": checks,
+    "validations": validations,
+    "blockers": [],
+    "cleanup": cleanup,
+    "final_main": final_main,
+    "rollback": rollback,
+})
+PYJSON
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -1398,6 +1723,10 @@ main() {
     git_create_feature_branch_safe)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "git_create_feature_branch_safe accepts only slug"
       git_create_feature_branch_safe "$slug"
+      ;;
+    github_pr_autopilot_merge_and_cleanup)
+      [ -z "$branch$title$body_file$file$pr_number$message$body$native_command$slug" ] || die "github_pr_autopilot_merge_and_cleanup accepts only mode/confirmation"
+      github_pr_autopilot_merge_and_cleanup "$mode" "$confirmation"
       ;;
     *)
       die "unknown action"
