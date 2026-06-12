@@ -14,7 +14,7 @@ const HUMAN = {
   BLOCKED: "Bloqueado",
   UNKNOWN: "No verificado",
   NO_VERIFICADO: "No verificado",
-  avoid_heavy_model: "Trabajo local / evitar modelo avanzado",
+  avoid_heavy_model: "Local",
 };
 
 const WARNINGS = {
@@ -26,9 +26,13 @@ function human(value) {
   return HUMAN[value] || value;
 }
 
+function toneClass(tone) {
+  return `oc-tone-${tone}`;
+}
+
 function setTone(node, tone) {
-  node.classList.remove("tone-green", "tone-yellow", "tone-red", "tone-gray");
-  node.classList.add(`tone-${tone}`);
+  node.classList.remove("oc-tone-green", "oc-tone-yellow", "oc-tone-red", "oc-tone-gray");
+  node.classList.add(toneClass(tone));
 }
 
 function boolText(value) {
@@ -52,23 +56,38 @@ function statusTone(status) {
 
 function hero(status) {
   const tone = statusTone(status);
-  if (tone === "green") return { icon: "🟢", title: "SISTEMA OPERATIVO", message: "Puedes trabajar con normalidad." };
-  if (tone === "yellow") return { icon: "🟡", title: "REQUIERE ATENCIÓN", message: "Puedes seguir, pero revisa los avisos antes de abrir trabajo pesado." };
-  if (tone === "red") return { icon: "🔴", title: "BLOQUEADO", message: "Hay bloqueos activos. No inicies trabajo nuevo hasta resolverlos." };
-  return { icon: "⚪", title: "NO VERIFICADO", message: "Esperando lectura del sistema." };
+  if (tone === "green") return { icon: "circle-check", title: "SISTEMA OPERATIVO", message: "Puedes trabajar con normalidad." };
+  if (tone === "yellow") return { icon: "triangle-alert", title: "REQUIERE ATENCIÓN", message: "Puedes seguir, pero revisa los avisos antes de abrir trabajo pesado." };
+  if (tone === "red") return { icon: "octagon-x", title: "BLOQUEADO", message: "Hay bloqueos activos. No inicies trabajo nuevo hasta resolverlos." };
+  return { icon: "circle", title: "NO VERIFICADO", message: "Esperando lectura del sistema." };
 }
 
 function signal(snapshot, name) {
   return snapshot.signals?.[name] || { status: "NO_VERIFICADO", confidence: "NO_VERIFICADO", summary: {} };
 }
 
-function signalLabel(name, item, snapshot) {
-  if (name === "healthcheck") return "Healthcheck";
-  if (name === "preflight") return "Preflight";
-  if (name === "openclaw_status") return "OpenClaw";
-  if (name === "usage_dashboard") return "Uso recursos";
-  if (name === "heavy_model") return "Modelo avanzado";
-  return name;
+function hasWarning(snapshot, code) {
+  return Array.isArray(snapshot.warnings) && snapshot.warnings.some((item) => item?.code === code);
+}
+
+function signalLabel(name) {
+  return {
+    healthcheck: "Healthcheck",
+    preflight: "Preflight",
+    openclaw_status: "OpenClaw",
+    usage_dashboard: "Uso recursos",
+    heavy_model: "Modelo avanzado",
+  }[name] || name;
+}
+
+function signalIcon(name) {
+  return {
+    healthcheck: "shield-check",
+    preflight: "zap",
+    openclaw_status: "activity",
+    usage_dashboard: "radio",
+    heavy_model: "moon",
+  }[name] || "circle";
 }
 
 function signalValue(name, item, snapshot) {
@@ -81,10 +100,6 @@ function signalValue(name, item, snapshot) {
   return human(item.status);
 }
 
-function hasWarning(snapshot, code) {
-  return Array.isArray(snapshot.warnings) && snapshot.warnings.some((item) => item?.code === code);
-}
-
 function generatedAt(snapshot) {
   return snapshot.signals?.usage_dashboard?.summary?.updated_at || "Bajo demanda";
 }
@@ -93,8 +108,8 @@ function updateTime(snapshot) {
   return snapshot.timestamp || snapshot.generated_at || generatedAt(snapshot) || "No verificado";
 }
 
-function codeItems(items) {
-  if (!Array.isArray(items) || items.length === 0) return ["Ninguno"];
+function codeItems(items, emptyText) {
+  if (!Array.isArray(items) || items.length === 0) return [emptyText];
   return items.map((item) => WARNINGS[item?.code] || item?.code || "UNKNOWN");
 }
 
@@ -108,15 +123,20 @@ function replaceList(id, values) {
   });
 }
 
+function renderIcons() {
+  if (window.lucide?.createIcons) window.lucide.createIcons();
+}
+
 function renderSignals(snapshot) {
   const names = ["healthcheck", "preflight", "openclaw_status", "usage_dashboard", "heavy_model"];
   const list = $("signal-list");
   list.replaceChildren();
   names.forEach((name) => {
-    const item = name === "heavy_model" ? { status: snapshot.can_work?.heavy_model === false ? "WARNING" : "OK" } : signal(snapshot, name);
+    const item = name === "heavy_model" ? { status: hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1") ? "WARNING" : "OK" } : signal(snapshot, name);
+    const tone = statusTone(item.status);
     const row = document.createElement("li");
-    row.className = `signal-row tone-${statusTone(item.status)}`;
-    row.innerHTML = `<span class="signal-dot"></span><span>${signalLabel(name, item, snapshot)}</span><strong>${signalValue(name, item, snapshot)}</strong>`;
+    row.className = `oc-signal-row ${toneClass(tone)}`;
+    row.innerHTML = `<span class="oc-signal-icon"><i data-lucide="${signalIcon(name)}" class="oc-icon-sm"></i></span><span>${signalLabel(name)}</span><strong>${signalValue(name, item, snapshot)}</strong>`;
     list.appendChild(row);
   });
 }
@@ -140,12 +160,15 @@ function renderTechnical(snapshot) {
 
 function render(snapshot) {
   const h = hero(snapshot.status);
-  $("hero-icon").textContent = h.icon;
+  const tone = statusTone(snapshot.status);
+  const icon = $("hero-icon");
+  icon.setAttribute("data-lucide", h.icon);
   $("hero-title").textContent = h.title;
   $("hero-message").textContent = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")
     ? `${h.message} Los modelos avanzados todavía no están conectados.`
     : h.message;
-  setTone($("hero-status"), statusTone(snapshot.status));
+  setTone($("hero-status"), tone);
+  setTone($("hero-icon-wrap"), tone);
 
   $("meta-updated").textContent = updateTime(snapshot);
   $("meta-generated").textContent = generatedAt(snapshot);
@@ -162,15 +185,16 @@ function render(snapshot) {
   setTone($("blockers-card"), blockers.length ? "red" : "green");
 
   $("mode-value").textContent = human(snapshot.recommended_mode);
-  setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : statusTone(snapshot.status));
+  setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : tone);
 
   renderSignals(snapshot);
-  replaceList("blockers", codeItems(snapshot.blockers));
-  replaceList("warnings", codeItems(snapshot.warnings));
+  replaceList("blockers", codeItems(snapshot.blockers, "No hay bloqueos activos."));
+  replaceList("warnings", codeItems(snapshot.warnings, "No hay avisos pendientes."));
   renderTechnical(snapshot);
 
-  $("missing-state").hidden = true;
-  $("dashboard").hidden = false;
+  $("missing-state").classList.add("hidden");
+  $("dashboard").classList.remove("hidden");
+  renderIcons();
 }
 
 function initTheme() {
@@ -178,11 +202,16 @@ function initTheme() {
   const saved = window.localStorage.getItem(THEME_KEY);
   const dark = saved ? saved === "dark" : true;
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  toggle.checked = dark;
-  toggle.addEventListener("change", () => {
-    const next = toggle.checked ? "dark" : "light";
+  toggle.querySelector("span").textContent = dark ? "Dark" : "Light";
+  toggle.querySelector("i,svg")?.setAttribute("data-lucide", dark ? "moon" : "sun");
+  toggle.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     window.localStorage.setItem(THEME_KEY, next);
+    toggle.querySelector("span").textContent = next === "dark" ? "Dark" : "Light";
+    const currentIcon = toggle.querySelector("svg");
+    if (currentIcon) currentIcon.outerHTML = `<i data-lucide="${next === "dark" ? "moon" : "sun"}" class="oc-icon-sm"></i>`;
+    renderIcons();
   });
 }
 
@@ -192,10 +221,12 @@ async function loadSnapshot() {
     if (!response.ok) throw new Error("missing snapshot");
     render(await response.json());
   } catch (_error) {
-    $("dashboard").hidden = true;
-    $("missing-state").hidden = false;
+    $("dashboard").classList.add("hidden");
+    $("missing-state").classList.remove("hidden");
+    renderIcons();
   }
 }
 
 initTheme();
+renderIcons();
 loadSnapshot();
