@@ -85,6 +85,32 @@ A local operation may be allowed while heavy model work is warning or blocked.
     "usage_comparison_stability": "OK | LOW | UNKNOWN",
     "blocking_reason": null
   },
+  "health_ia": {
+    "schema_version": "health_ia.v1",
+    "status": "OK | WARNING | NO_VERIFICADO",
+    "risk": "LOW | MEDIUM | HIGH | UNKNOWN",
+    "summary": {
+      "updated_at": null,
+      "usage_24h_units": null,
+      "previous_24h_units": null,
+      "delta_percent": null,
+      "units_per_minute": null,
+      "usage_entries_24h": null
+    },
+    "details": {
+      "input_units_24h": null,
+      "output_units_24h": null,
+      "cache_read_units_24h": null,
+      "total_units_historical": null,
+      "cache_read_units_historical": null
+    },
+    "source": {
+      "path": "USAGE_DASHBOARD",
+      "confidence": "LOW | NO_VERIFICADO",
+      "available": true,
+      "blocking": false
+    }
+  },
   "staleness": {
     "healthcheck": {
       "present": true,
@@ -281,6 +307,8 @@ Controlled OpenClaw status is read only through `inspect_openclaw_native_status_
 The real-signal adapter also supports `--human`, which renders a human summary derived from the same JSON payload. JSON remains the default output.
 
 The real-signal adapter may include advisory `staleness` and `recommended_mode` fields. They must not change `can_work.local`, `can_work.start_feature`, `can_work.heavy_model`, `status`, or `risk_level`.
+
+The real-signal adapter may include `health_ia` as an advisory LOW-confidence usage-health block derived from the existing usage dashboard source. It contains data, status, risk, details, and source metadata only. It must not store human interpretation text, must not change `can_work.*`, and must not change global `status` or `risk_level` by itself. If the source is missing or invalid, `health_ia.status` degrades to `NO_VERIFICADO` with `source.available=false`.
 
 `recommended_mode` is advisory only. While `HEAVY_MODEL_NOT_CONNECTED_V1` is present, the recommended mode is `avoid_heavy_model`.
 

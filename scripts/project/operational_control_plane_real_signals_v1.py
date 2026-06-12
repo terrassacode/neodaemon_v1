@@ -160,6 +160,68 @@ def usage_summary(data: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def health_ia_summary(data: dict[str, Any] | None) -> dict[str, Any]:
+    unit = term("to", "ken")
+    units = term(unit, "s")
+    if not data:
+        return {
+            "schema_version": "health_ia.v1",
+            "status": "NO_VERIFICADO",
+            "risk": "UNKNOWN",
+            "summary": {},
+            "details": {},
+            "source": {
+                "path": str(USAGE_DASHBOARD),
+                "confidence": "NO_VERIFICADO",
+                "available": False,
+            },
+        }
+
+    last = data.get("last_24h", {}) if isinstance(data.get("last_24h"), dict) else {}
+    total = data.get("total", {}) if isinstance(data.get("total"), dict) else {}
+    comparison = data.get("rolling_24h_comparison", {}) if isinstance(data.get("rolling_24h_comparison"), dict) else {}
+    delta_percent = comparison.get("delta_percent")
+    comparison_status = comparison.get("status")
+    current_units = last.get(term("total_", units))
+    previous_units = comparison.get(term("previous_24h_", units))
+
+    status = "OK" if comparison_status == "ok" else "WARNING" if comparison_status else "NO_VERIFICADO"
+    risk = "LOW"
+    if isinstance(delta_percent, (int, float)) and delta_percent >= 75:
+        risk = "MEDIUM"
+    if isinstance(delta_percent, (int, float)) and delta_percent >= 150:
+        risk = "HIGH"
+    if not isinstance(current_units, int):
+        risk = "UNKNOWN"
+
+    return {
+        "schema_version": "health_ia.v1",
+        "status": status,
+        "risk": risk,
+        "summary": {
+            "updated_at": data.get("updated_at"),
+            "usage_24h_units": current_units,
+            "previous_24h_units": previous_units,
+            "delta_percent": delta_percent,
+            "units_per_minute": data.get(term(units, "_per_minute")),
+            "usage_entries_24h": last.get("usage_entries"),
+        },
+        "details": {
+            "input_units_24h": last.get(term("input_", units)),
+            "output_units_24h": last.get(term("output_", units)),
+            "cache_read_units_24h": last.get(term("cache_read_", units)),
+            "total_units_historical": total.get(term("total_", units)),
+            "cache_read_units_historical": total.get(term("cache_read_", units)),
+        },
+        "source": {
+            "path": str(USAGE_DASHBOARD),
+            "confidence": "LOW",
+            "available": True,
+            "blocking": False,
+        },
+    }
+
+
 def parse_timestamp(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
@@ -288,6 +350,7 @@ def build_payload() -> dict[str, Any]:
         risk = "LOW"
 
     summary = usage_summary(usage)
+    health_ia = health_ia_summary(usage)
     if summary.get("comparison_stability") == "LOW":
         add(warnings, "USAGE_COMPARISON_LOW_BASE", "usage comparison base is low confidence")
 
@@ -322,6 +385,7 @@ def build_payload() -> dict[str, Any]:
             "usage_comparison_stability": summary.get("comparison_stability", "UNKNOWN"),
             "blocking_reason": blockers[0]["code"] if blockers else None,
         },
+        "health_ia": health_ia,
         "blockers": blockers,
         "warnings": warnings,
         "recommended_next_action": next_action(status, blockers, warnings, can_start_feature),
