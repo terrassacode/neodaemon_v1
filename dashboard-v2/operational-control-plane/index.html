@@ -9,7 +9,13 @@
 <body>
   <main class="shell">
     <header class="hero">
-      <p class="eyebrow">Operational Control Plane</p>
+      <div class="hero-topline">
+        <p class="eyebrow">Operational Control Plane</p>
+        <label class="theme-toggle">
+          <input id="theme-toggle" type="checkbox" aria-label="Activar modo oscuro">
+          <span>Modo oscuro</span>
+        </label>
+      </div>
       <h1>SALUD DEL SISTEMA</h1>
       <p id="snapshot-note" class="snapshot-note">Estado generado bajo demanda</p>
     </header>
@@ -19,6 +25,15 @@
     </section>
 
     <section id="dashboard" hidden>
+      <section id="system-banner" class="system-banner tone-gray" aria-label="Estado principal del sistema">
+        <div class="system-banner-icon" id="system-banner-icon">⚪</div>
+        <div>
+          <span class="system-banner-label">Estado general</span>
+          <strong id="system-banner-text">NO VERIFICADO</strong>
+          <p id="system-banner-help">Esperando lectura del sistema.</p>
+        </div>
+      </section>
+
       <section class="decision-grid" aria-label="Respuestas rápidas">
         <article id="local-card" class="decision-card">
           <span>¿Puedo trabajar?</span>
@@ -40,7 +55,7 @@
 
       <section class="summary-strip" aria-label="Estado global">
         <div><span>Status</span><strong id="global-status">NO VERIFICADO</strong></div>
-        <div><span>Riesgo</span><strong id="risk-level">UNKNOWN</strong></div>
+        <div><span>Riesgo</span><strong id="risk-level">No verificado</strong></div>
         <div><span>Modo recomendado</span><strong id="recommended-mode">No verificado</strong></div>
       </section>
 
@@ -71,7 +86,7 @@
         </article>
         <article id="heavy" class="signal-card">
           <div class="dot"></div>
-          <h2>Modelo pesado</h2>
+          <h2>Modelo avanzado</h2>
           <p class="human">No verificado</p>
           <p class="detail">Sin lectura</p>
         </article>
@@ -79,11 +94,11 @@
 
       <section class="lists">
         <article>
-          <h2>Blockers</h2>
+          <h2>Bloqueos</h2>
           <ul id="blockers"></ul>
         </article>
         <article>
-          <h2>Warnings</h2>
+          <h2>Avisos</h2>
           <ul id="warnings"></ul>
         </article>
       </section>
@@ -91,6 +106,10 @@
       <details class="technical">
         <summary>Detalles técnicos</summary>
         <div class="technical-grid">
+          <section>
+            <h3>Valores técnicos</h3>
+            <ul id="technical-values"></ul>
+          </section>
           <section>
             <h3>Staleness</h3>
             <ul id="staleness"></ul>
