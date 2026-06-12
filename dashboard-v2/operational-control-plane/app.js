@@ -1,4 +1,4 @@
-const SNAPSHOT_URL = "../data/operational_control_plane_v1.json";
+const SNAPSHOT_URL = "/data/operational_control_plane_v1.json";
 const THEME_KEY = "openclaw-control-center-theme";
 
 const $ = (id) => document.getElementById(id);
@@ -218,8 +218,38 @@ function initTheme() {
 async function loadSnapshot() {
   try {
     const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
-    if (!response.ok) throw new Error("missing snapshot");
-    render(await response.json());
+    if (!response.ok) {
+      console.warn("Control Center snapshot load failed", {
+        reason: "HTTP_NOT_OK",
+        url: SNAPSHOT_URL,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      throw new Error("missing snapshot");
+    }
+
+    let snapshot;
+    try {
+      snapshot = await response.json();
+    } catch (error) {
+      console.warn("Control Center snapshot load failed", {
+        reason: "JSON_PARSE_ERROR",
+        url: SNAPSHOT_URL,
+        error,
+      });
+      throw error;
+    }
+
+    try {
+      render(snapshot);
+    } catch (error) {
+      console.warn("Control Center snapshot render failed", {
+        reason: "RENDER_ERROR",
+        url: SNAPSHOT_URL,
+        error,
+      });
+      throw error;
+    }
   } catch (_error) {
     $("dashboard").classList.add("hidden");
     $("missing-state").classList.remove("hidden");
