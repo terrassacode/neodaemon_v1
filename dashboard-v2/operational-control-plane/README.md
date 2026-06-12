@@ -1,6 +1,6 @@
-# OpenClaw Control Center V3
+# OpenClaw Control Center V4
 
-Centro de control modular para consultar el snapshot del Operational Control Plane aplicando OpenClaw Visual System V1.
+Centro de control modular compacto para consultar el snapshot del Operational Control Plane aplicando OpenClaw Visual System V1.
 
 ## Fuente única
 
@@ -12,7 +12,7 @@ Lee únicamente:
 
 ## Assets locales
 
-V3 es local-offline y no usa CDN ni build:
+V4 mantiene ejecución local-offline y no usa CDN ni build:
 
 ```text
 vendor/tailwind.css
@@ -25,11 +25,14 @@ Notas:
 - `vendor/lucide.min.js` contiene el subset local compatible con Lucide Icons usado por esta pantalla.
 - No hay `package.json`, `node_modules`, Vite, npm ni pipeline de build.
 
-## Principios V3
+## Principios V4
 
 - Mobile-first.
 - Dark-first.
 - Minimalismo agresivo.
+- Cockpit operativo compacto.
+- Primer viewport con estado, KPIs e inicio de señales.
+- Sin letras gigantes ni cajas sobredimensionadas.
 - Jerarquía visual clara.
 - Información crítica visible en menos de 3 segundos.
 - Todo lo técnico queda detrás de “Detalles técnicos”.
