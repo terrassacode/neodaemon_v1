@@ -1371,7 +1371,7 @@ def run(cmd, timeout=20):
 
 
 def git(*args):
-    forbidden = {"reset", "rebase", "merge", "push", "branch", "switch", "checkout", "stash"}
+    forbidden = {"reset", "rebase", "merge", "push", "switch", "checkout", "stash"}
     if args and args[0] in forbidden:
         return False, ""
     rc, out, _err = run(["git", *args], timeout=10)
