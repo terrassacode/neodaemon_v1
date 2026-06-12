@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operational Control Plane</title>
+  <link rel="stylesheet" href="css/operational-control-plane.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <p class="eyebrow">Operational Control Plane</p>
+      <h1>SALUD DEL SISTEMA</h1>
+      <p id="snapshot-note" class="snapshot-note">Estado generado bajo demanda</p>
+    </header>
+
+    <section id="missing-state" class="missing-state" hidden>
+      Estado no generado todavía. Ejecuta el generador de snapshot.
+    </section>
+
+    <section id="dashboard" hidden>
+      <section class="priority-grid" aria-label="Resumen principal">
+        <article class="priority-card" id="work-card">
+          <span class="label">¿Puedo trabajar?</span>
+          <strong id="can-work-local">No verificado</strong>
+        </article>
+        <article class="priority-card" id="feature-card">
+          <span class="label">¿Puedo iniciar una feature?</span>
+          <strong id="can-start-feature">No verificado</strong>
+        </article>
+        <article class="priority-card" id="blockers-card">
+          <span class="label">¿Hay algo bloqueado?</span>
+          <strong id="blockers-summary">No verificado</strong>
+        </article>
+        <article class="priority-card action" id="action-card">
+          <span class="label">¿Qué debo hacer ahora?</span>
+          <strong id="next-action">Revisar estado</strong>
+        </article>
+      </section>
+
+      <section class="cards" aria-label="Señales principales">
+        <article class="signal-card" id="healthcheck-card">
+          <span class="status-dot"></span>
+          <h2>Healthcheck</h2>
+          <p class="human-text">Sistema local no verificado</p>
+          <p class="secondary-text"></p>
+        </article>
+        <article class="signal-card" id="preflight-card">
+          <span class="status-dot"></span>
+          <h2>Preflight</h2>
+          <p class="human-text">No iniciar feature</p>
+          <p class="secondary-text"></p>
+        </article>
+        <article class="signal-card" id="openclaw-card">
+          <span class="status-dot"></span>
+          <h2>OpenClaw</h2>
+          <p class="human-text">OpenClaw no verificado</p>
+          <p class="secondary-text"></p>
+        </article>
+        <article class="signal-card" id="usage-card">
+          <span class="status-dot"></span>
+          <h2>Uso de recursos</h2>
+          <p class="human-text">Comparación poco fiable</p>
+          <p class="secondary-text"></p>
+        </article>
+        <article class="signal-card" id="heavy-card">
+          <span class="status-dot"></span>
+          <h2>Modelo pesado</h2>
+          <p class="human-text">No conectado</p>
+          <p class="secondary-text"></p>
+        </article>
+      </section>
+
+      <details class="details-panel">
+        <summary>Detalles técnicos</summary>
+        <div class="details-grid">
+          <section>
+            <h3>Warnings</h3>
+            <ul id="warnings-list"></ul>
+          </section>
+          <section>
+            <h3>Blockers</h3>
+            <ul id="blockers-list"></ul>
+          </section>
+          <section>
+            <h3>Modo recomendado</h3>
+            <p id="recommended-mode">No verificado</p>
+          </section>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="js/operational-control-plane.js"></script>
+</body>
+</html>
