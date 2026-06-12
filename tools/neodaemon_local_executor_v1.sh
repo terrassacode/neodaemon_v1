@@ -43,6 +43,7 @@ Allowed actions:
   inspect_openclaw_native_status_readonly
   git_create_feature_branch_safe
   publish_operational_control_plane_dashboard_apply_v1
+  write_operational_control_plane_snapshot_action_v1
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -61,6 +62,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"inspect_openclaw_native_status_readonly","command":"status_usage"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"git_create_feature_branch_safe","slug":"example-feature-v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_operational_control_plane_dashboard_apply_v1"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
 USAGE
 }
 
@@ -1171,6 +1173,98 @@ emit(
 PYJSON
 }
 
+write_operational_control_plane_snapshot_action_v1() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+
+
+ACTION = "write_operational_control_plane_snapshot_action_v1"
+SCRIPT = "scripts/project/write_operational_control_plane_snapshot_v1.py"
+
+
+def emit(payload, rc=0):
+    payload.setdefault("action", ACTION)
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False))
+    raise SystemExit(rc)
+
+
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    emit({"status": "BLOCKED", "summary": "invalid json request"}, 1)
+
+if set(data) != {"action"} or data.get("action") != ACTION:
+    emit(
+        {
+            "status": "BLOCKED",
+            "summary": "action accepts no parameters",
+            "received_fields": sorted(data),
+        },
+        1,
+    )
+
+repo = os.getcwd()
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    emit({"status": "BLOCKED", "summary": "worktree status failed before snapshot write"}, 1)
+if before.stdout.strip():
+    emit({"status": "BLOCKED", "summary": "worktree not clean before snapshot write", "worktree_clean_before": False}, 1)
+
+try:
+    proc = subprocess.run(
+        ["python3", SCRIPT],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    after_timeout = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    emit(
+        {
+            "status": "FAIL",
+            "summary": "snapshot write timeout",
+            "exit_code": 124,
+            "stdout": (exc.stdout or "")[:4000],
+            "stderr": (exc.stderr or "")[:4000],
+            "worktree_clean_before": True,
+            "worktree_clean_after": after_timeout.returncode == 0 and not after_timeout.stdout.strip(),
+        },
+        1,
+    )
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+after_clean = after.returncode == 0 and not after.stdout.strip()
+
+snapshot_result = None
+try:
+    snapshot_result = json.loads(proc.stdout)
+except Exception:
+    snapshot_result = None
+
+status = "PASS" if proc.returncode == 0 and after_clean else "FAIL"
+emit(
+    {
+        "status": status,
+        "script": SCRIPT,
+        "exit_code": proc.returncode,
+        "snapshot_result": snapshot_result,
+        "stdout": proc.stdout[:4000] if snapshot_result is None else "",
+        "stderr": proc.stderr[:4000],
+        "worktree_clean_before": True,
+        "worktree_clean_after": after_clean,
+    },
+    0 if status == "PASS" else 1,
+)
+PYJSON
+}
+
 git_create_feature_branch_safe() {
   slug="$1"
 
@@ -1297,6 +1391,9 @@ main() {
       ;;
     publish_operational_control_plane_dashboard_apply_v1)
       publish_operational_control_plane_dashboard_apply_v1
+      ;;
+    write_operational_control_plane_snapshot_action_v1)
+      write_operational_control_plane_snapshot_action_v1
       ;;
     git_create_feature_branch_safe)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "git_create_feature_branch_safe accepts only slug"
