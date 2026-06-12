@@ -1,40 +1,34 @@
 const SNAPSHOT_URL = "../data/operational_control_plane_v1.json";
-const THEME_KEY = "operational-control-plane-theme";
+const THEME_KEY = "openclaw-control-center-theme";
 
 const $ = (id) => document.getElementById(id);
 
-const STATUS_LABELS = {
-  OK: "SISTEMA OPERATIVO",
-  READY: "SISTEMA OPERATIVO",
-  AVAILABLE: "SISTEMA OPERATIVO",
-  WARNING: "REQUIERE ATENCIÓN",
-  DEGRADED: "REQUIERE ATENCIÓN",
-  BLOCKED: "BLOQUEADO",
-  PLAN_LIMIT_REACHED: "BLOQUEADO",
-  RATE_LIMIT_OR_COOLDOWN: "BLOQUEADO",
-  SIGNIN_ERROR: "BLOQUEADO",
-};
-
-const HUMAN_LABELS = {
+const HUMAN = {
   WARNING: "Precaución",
   MEDIUM: "Medio",
-  avoid_heavy_model: "Trabajo local / evitar modelo avanzado",
+  LOW: "Bajo",
+  HIGH: "Alto",
+  OK: "OK",
+  READY: "READY",
+  DEGRADED: "Degradado",
+  BLOCKED: "Bloqueado",
   UNKNOWN: "No verificado",
   NO_VERIFICADO: "No verificado",
+  avoid_heavy_model: "Trabajo local / evitar modelo avanzado",
 };
 
-const WARNING_MESSAGES = {
+const WARNINGS = {
   HEAVY_MODEL_NOT_CONNECTED_V1: "Los modelos avanzados todavía no están conectados.",
 };
 
-function humanLabel(value) {
+function human(value) {
   if (value === undefined || value === null || value === "") return "No verificado";
-  return HUMAN_LABELS[value] || value;
+  return HUMAN[value] || value;
 }
 
-function setTone(element, tone) {
-  element.classList.remove("tone-green", "tone-yellow", "tone-red", "tone-gray");
-  element.classList.add(`tone-${tone}`);
+function setTone(node, tone) {
+  node.classList.remove("tone-green", "tone-yellow", "tone-red", "tone-gray");
+  node.classList.add(`tone-${tone}`);
 }
 
 function boolText(value) {
@@ -43,169 +37,136 @@ function boolText(value) {
   return "No verificado";
 }
 
-function toneFromBoolean(value) {
+function boolTone(value) {
   if (value === true) return "green";
   if (value === false) return "red";
   return "gray";
 }
 
-function toneFromStatus(status) {
+function statusTone(status) {
   if (["OK", "READY", "AVAILABLE"].includes(status)) return "green";
   if (["WARNING", "DEGRADED"].includes(status)) return "yellow";
   if (["BLOCKED", "PLAN_LIMIT_REACHED", "RATE_LIMIT_OR_COOLDOWN", "SIGNIN_ERROR"].includes(status)) return "red";
   return "gray";
 }
 
-function bannerFromStatus(status) {
-  const tone = toneFromStatus(status);
-  if (tone === "green") return { icon: "🟢", text: "SISTEMA OPERATIVO", help: "Puedes trabajar con normalidad." };
-  if (tone === "yellow") return { icon: "🟡", text: "REQUIERE ATENCIÓN", help: "Puedes continuar con prudencia y revisar los avisos." };
-  if (tone === "red") return { icon: "🔴", text: "BLOQUEADO", help: "Hay bloqueos que revisar antes de seguir." };
-  return { icon: "⚪", text: "NO VERIFICADO", help: "Esperando lectura del sistema." };
+function hero(status) {
+  const tone = statusTone(status);
+  if (tone === "green") return { icon: "🟢", title: "SISTEMA OPERATIVO", message: "Puedes trabajar con normalidad." };
+  if (tone === "yellow") return { icon: "🟡", title: "REQUIERE ATENCIÓN", message: "Puedes seguir, pero revisa los avisos antes de abrir trabajo pesado." };
+  if (tone === "red") return { icon: "🔴", title: "BLOQUEADO", message: "Hay bloqueos activos. No inicies trabajo nuevo hasta resolverlos." };
+  return { icon: "⚪", title: "NO VERIFICADO", message: "Esperando lectura del sistema." };
 }
 
 function signal(snapshot, name) {
   return snapshot.signals?.[name] || { status: "NO_VERIFICADO", confidence: "NO_VERIFICADO", summary: {} };
 }
 
-function codeList(items) {
+function signalLabel(name, item, snapshot) {
+  if (name === "healthcheck") return "Healthcheck";
+  if (name === "preflight") return "Preflight";
+  if (name === "openclaw_status") return "OpenClaw";
+  if (name === "usage_dashboard") return "Uso recursos";
+  if (name === "heavy_model") return "Modelo avanzado";
+  return name;
+}
+
+function signalValue(name, item, snapshot) {
+  if (name === "usage_dashboard") return human(item.summary?.comparison_stability || item.status);
+  if (name === "heavy_model") {
+    if (snapshot.can_work?.heavy_model === true) return "Disponible";
+    if (hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")) return "No conectado";
+    if (snapshot.can_work?.heavy_model === false) return "Bloqueado";
+  }
+  return human(item.status);
+}
+
+function hasWarning(snapshot, code) {
+  return Array.isArray(snapshot.warnings) && snapshot.warnings.some((item) => item?.code === code);
+}
+
+function generatedAt(snapshot) {
+  return snapshot.signals?.usage_dashboard?.summary?.updated_at || "Bajo demanda";
+}
+
+function updateTime(snapshot) {
+  return snapshot.timestamp || snapshot.generated_at || generatedAt(snapshot) || "No verificado";
+}
+
+function codeItems(items) {
   if (!Array.isArray(items) || items.length === 0) return ["Ninguno"];
-  return items.map((item) => WARNING_MESSAGES[item?.code] || item?.code || "UNKNOWN");
+  return items.map((item) => WARNINGS[item?.code] || item?.code || "UNKNOWN");
 }
 
 function replaceList(id, values) {
   const node = $(id);
   node.replaceChildren();
   values.forEach((value) => {
-    const item = document.createElement("li");
-    item.textContent = value;
-    node.appendChild(item);
+    const li = document.createElement("li");
+    li.textContent = value;
+    node.appendChild(li);
   });
 }
 
-function generatedText(snapshot) {
-  const usageTime = snapshot.signals?.usage_dashboard?.summary?.updated_at;
-  if (usageTime) return `Última lectura generada: ${usageTime}`;
-  return "Estado generado bajo demanda";
-}
-
-function actionText(snapshot) {
-  if (snapshot.can_work?.local === true && snapshot.can_work?.start_feature === true && snapshot.recommended_mode === "avoid_heavy_model") {
-    return "Puedes trabajar con normalidad. Los modelos avanzados todavía no están conectados.";
-  }
-  return humanLabel(snapshot.recommended_next_action || snapshot.recommended_mode || "Revisar estado");
-}
-
-function healthText(item) {
-  if (item.status === "OK") return "Sistema local operativo";
-  if (["DEGRADED", "BLOCKED"].includes(item.status)) return "Revisar sistema local";
-  return "Sistema local no verificado";
-}
-
-function preflightText(item) {
-  if (item.status === "READY") return "Se pueden iniciar features";
-  if (["DEGRADED", "BLOCKED"].includes(item.status)) return "No iniciar feature";
-  return "Preflight no verificado";
-}
-
-function openclawText(item) {
-  if (item.status === "OK") return "Gateway accesible";
-  if (["WARNING", "DEGRADED"].includes(item.status)) return "Revisar OpenClaw";
-  return "OpenClaw no verificado";
-}
-
-function usageText(item) {
-  const stability = item.summary?.comparison_stability;
-  if (item.status === "OK" && stability === "OK") return "Uso normal";
-  if (stability === "LOW") return "Comparación poco fiable";
-  if (["WARNING", "DEGRADED"].includes(item.status)) return "Precaución";
-  return "Uso no verificado";
-}
-
-function heavyText(snapshot) {
-  const heavy = snapshot.can_work?.heavy_model;
-  const warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings.map((item) => item?.code) : [];
-  if (heavy === true) return { text: "Disponible", tone: "green" };
-  if (warnings.includes("HEAVY_MODEL_NOT_CONNECTED_V1")) {
-    return { text: "Los modelos avanzados todavía no están conectados.", tone: "gray" };
-  }
-  if (heavy === false) return { text: "Bloqueado", tone: "red" };
-  return { text: "No verificado", tone: "gray" };
-}
-
-function updateSignalCard(id, tone, human, detail) {
-  const card = $(id);
-  setTone(card, tone);
-  card.querySelector(".human").textContent = human;
-  card.querySelector(".detail").textContent = detail || "";
+function renderSignals(snapshot) {
+  const names = ["healthcheck", "preflight", "openclaw_status", "usage_dashboard", "heavy_model"];
+  const list = $("signal-list");
+  list.replaceChildren();
+  names.forEach((name) => {
+    const item = name === "heavy_model" ? { status: snapshot.can_work?.heavy_model === false ? "WARNING" : "OK" } : signal(snapshot, name);
+    const row = document.createElement("li");
+    row.className = `signal-row tone-${statusTone(item.status)}`;
+    row.innerHTML = `<span class="signal-dot"></span><span>${signalLabel(name, item, snapshot)}</span><strong>${signalValue(name, item, snapshot)}</strong>`;
+    list.appendChild(row);
+  });
 }
 
 function renderTechnical(snapshot) {
   replaceList("technical-values", [
+    `schema_version: ${snapshot.schema_version || "NO_VERIFICADO"}`,
     `status: ${snapshot.status || "NO_VERIFICADO"}`,
     `risk_level: ${snapshot.risk_level || "UNKNOWN"}`,
     `recommended_mode: ${snapshot.recommended_mode || "NO_VERIFICADO"}`,
   ]);
 
-  const stale = snapshot.staleness || {};
-  replaceList("staleness", Object.entries(stale).map(([name, item]) => {
+  replaceList("staleness", Object.entries(snapshot.staleness || {}).map(([name, item]) => {
     const age = item?.age_seconds === null || item?.age_seconds === undefined ? "edad desconocida" : `${item.age_seconds}s`;
     return `${name}: ${item?.present ? "presente" : "no presente"}, ${item?.stale}, ${age}`;
   }));
 
-  const confidence = snapshot.confidence || {};
-  replaceList("confidence", Object.entries(confidence).map(([name, value]) => `${name}: ${value}`));
-
-  const signals = snapshot.signals || {};
-  replaceList("signals", Object.entries(signals).map(([name, item]) => `${name}: ${item?.status || "NO_VERIFICADO"}`));
+  replaceList("confidence", Object.entries(snapshot.confidence || {}).map(([name, value]) => `${name}: ${value}`));
+  replaceList("signals", Object.entries(snapshot.signals || {}).map(([name, item]) => `${name}: ${item?.status || "NO_VERIFICADO"}`));
 }
 
 function render(snapshot) {
-  $("snapshot-note").textContent = generatedText(snapshot);
+  const h = hero(snapshot.status);
+  $("hero-icon").textContent = h.icon;
+  $("hero-title").textContent = h.title;
+  $("hero-message").textContent = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")
+    ? `${h.message} Los modelos avanzados todavía no están conectados.`
+    : h.message;
+  setTone($("hero-status"), statusTone(snapshot.status));
 
-  const banner = bannerFromStatus(snapshot.status);
-  $("system-banner-icon").textContent = banner.icon;
-  $("system-banner-text").textContent = banner.text;
-  $("system-banner-help").textContent = banner.help;
-  setTone($("system-banner"), toneFromStatus(snapshot.status));
+  $("meta-updated").textContent = updateTime(snapshot);
+  $("meta-generated").textContent = generatedAt(snapshot);
+  $("meta-status").textContent = human(snapshot.status);
 
-  $("global-status").textContent = STATUS_LABELS[snapshot.status] || humanLabel(snapshot.status);
-  $("risk-level").textContent = humanLabel(snapshot.risk_level);
-  $("recommended-mode").textContent = humanLabel(snapshot.recommended_mode);
+  $("work-value").textContent = boolText(snapshot.can_work?.local);
+  setTone($("work-card"), boolTone(snapshot.can_work?.local));
 
-  const canLocal = snapshot.can_work?.local;
-  const canFeature = snapshot.can_work?.start_feature;
+  $("feature-value").textContent = boolText(snapshot.can_work?.start_feature);
+  setTone($("feature-card"), boolTone(snapshot.can_work?.start_feature));
+
   const blockers = Array.isArray(snapshot.blockers) ? snapshot.blockers : [];
+  $("blockers-value").textContent = blockers.length ? "Sí" : "No";
+  setTone($("blockers-card"), blockers.length ? "red" : "green");
 
-  $("local-value").textContent = boolText(canLocal);
-  setTone($("local-card"), toneFromBoolean(canLocal));
+  $("mode-value").textContent = human(snapshot.recommended_mode);
+  setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : statusTone(snapshot.status));
 
-  $("feature-value").textContent = boolText(canFeature);
-  setTone($("feature-card"), toneFromBoolean(canFeature));
-
-  $("blocked-value").textContent = blockers.length ? "Sí" : "No";
-  setTone($("blocked-card"), blockers.length ? "red" : "green");
-
-  $("action-value").textContent = actionText(snapshot);
-  setTone($("action-card"), toneFromStatus(snapshot.status));
-
-  const health = signal(snapshot, "healthcheck");
-  updateSignalCard("healthcheck", toneFromStatus(health.status), healthText(health), humanLabel(health.status));
-
-  const preflight = signal(snapshot, "preflight");
-  updateSignalCard("preflight", toneFromStatus(preflight.status), preflightText(preflight), humanLabel(preflight.status));
-
-  const openclaw = signal(snapshot, "openclaw_status");
-  updateSignalCard("openclaw", toneFromStatus(openclaw.status), openclawText(openclaw), humanLabel(openclaw.status));
-
-  const usage = signal(snapshot, "usage_dashboard");
-  updateSignalCard("usage", toneFromStatus(usage.status), usageText(usage), humanLabel(usage.summary?.comparison_stability || usage.status));
-
-  const heavy = heavyText(snapshot);
-  updateSignalCard("heavy", heavy.tone, heavy.text, humanLabel(snapshot.recommended_mode));
-
-  replaceList("blockers", codeList(snapshot.blockers));
-  replaceList("warnings", codeList(snapshot.warnings));
+  renderSignals(snapshot);
+  replaceList("blockers", codeItems(snapshot.blockers));
+  replaceList("warnings", codeItems(snapshot.warnings));
   renderTechnical(snapshot);
 
   $("missing-state").hidden = true;
@@ -215,7 +176,7 @@ function render(snapshot) {
 function initTheme() {
   const toggle = $("theme-toggle");
   const saved = window.localStorage.getItem(THEME_KEY);
-  const dark = saved === "dark";
+  const dark = saved ? saved === "dark" : true;
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   toggle.checked = dark;
   toggle.addEventListener("change", () => {
@@ -229,10 +190,8 @@ async function loadSnapshot() {
   try {
     const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
     if (!response.ok) throw new Error("missing snapshot");
-    const snapshot = await response.json();
-    render(snapshot);
+    render(await response.json());
   } catch (_error) {
-    $("snapshot-note").textContent = "Estado generado bajo demanda";
     $("dashboard").hidden = true;
     $("missing-state").hidden = false;
   }
