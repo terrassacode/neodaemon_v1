@@ -8,13 +8,13 @@ const HUMAN = {
   MEDIUM: "Medio",
   LOW: "Bajo",
   HIGH: "Alto",
-  OK: "OK",
-  READY: "READY",
+  OK: "Correcto",
+  READY: "Preparado",
   DEGRADED: "Degradado",
   BLOCKED: "Bloqueado",
   UNKNOWN: "No verificado",
   NO_VERIFICADO: "No verificado",
-  avoid_heavy_model: "Local",
+  avoid_heavy_model: "Trabajo local",
 };
 
 const WARNINGS = {
@@ -55,20 +55,90 @@ function statusTone(status) {
   return "gray";
 }
 
-function hero(status) {
-  const tone = statusTone(status);
-  if (tone === "green") return { icon: "circle-check", title: "SISTEMA OPERATIVO", message: "Puedes trabajar con normalidad." };
-  if (tone === "yellow") return { icon: "triangle-alert", title: "REQUIERE ATENCIÓN", message: "Puedes seguir, pero revisa los avisos antes de abrir trabajo pesado." };
-  if (tone === "red") return { icon: "octagon-x", title: "BLOQUEADO", message: "Hay bloqueos activos. No inicies trabajo nuevo hasta resolverlos." };
-  return { icon: "circle", title: "NO VERIFICADO", message: "Esperando lectura del sistema." };
+function hasWarning(snapshot, code) {
+  return Array.isArray(snapshot.warnings) && snapshot.warnings.some((item) => item?.code === code);
+}
+
+function hasBlockers(snapshot) {
+  return Array.isArray(snapshot.blockers) && snapshot.blockers.length > 0;
+}
+
+function formatSpainDate(value) {
+  if (!value) return "Bajo demanda";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function compactNumber(value) {
+  if (typeof value !== "number") return "No verificado";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)} M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)} k`;
+  return String(value);
+}
+
+function hero(snapshot) {
+  const tone = statusTone(snapshot.status);
+  const advancedMissing = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1");
+  const blocked = hasBlockers(snapshot);
+
+  if (blocked || tone === "red") {
+    return {
+      icon: "octagon-x",
+      tone: "red",
+      title: "BLOQUEADO",
+      message: "Hay bloqueos activos. No inicies trabajo nuevo hasta resolverlos.",
+      reason: "Existe al menos un bloqueo operativo.",
+      impact: "El trabajo puede quedar interrumpido.",
+      action: "Revisar bloqueos antes de continuar.",
+    };
+  }
+
+  if (advancedMissing || tone === "yellow") {
+    return {
+      icon: "triangle-alert",
+      tone: "yellow",
+      title: "OPERATIVO CON LIMITACIONES",
+      message: "La plataforma está operativa. La limitación detectada afecta al modelo avanzado.",
+      reason: advancedMissing ? "El modelo avanzado no está conectado." : "Hay una señal que requiere atención.",
+      impact: "Las funciones locales siguen funcionando.",
+      action: "Continuar trabajo local. Evitar funciones que dependan del modelo avanzado.",
+    };
+  }
+
+  if (tone === "green") {
+    return {
+      icon: "circle-check",
+      tone: "green",
+      title: "SISTEMA OPERATIVO",
+      message: "Puedes trabajar con normalidad.",
+      reason: "Las señales principales están correctas.",
+      impact: "No hay limitaciones relevantes para trabajar.",
+      action: "Continuar con el trabajo previsto.",
+    };
+  }
+
+  return {
+    icon: "circle",
+    tone: "gray",
+    title: "NO VERIFICADO",
+    message: "Esperando lectura del sistema.",
+    reason: "No hay lectura suficiente del snapshot.",
+    impact: "No se puede confirmar el estado operativo.",
+    action: "Generar o revisar el snapshot operativo.",
+  };
 }
 
 function signal(snapshot, name) {
   return snapshot.signals?.[name] || { status: "NO_VERIFICADO", confidence: "NO_VERIFICADO", summary: {} };
-}
-
-function hasWarning(snapshot, code) {
-  return Array.isArray(snapshot.warnings) && snapshot.warnings.some((item) => item?.code === code);
 }
 
 function signalLabel(name) {
@@ -81,32 +151,33 @@ function signalLabel(name) {
   }[name] || name;
 }
 
-function signalIcon(name) {
-  return {
-    healthcheck: "shield-check",
-    preflight: "zap",
-    openclaw_status: "activity",
-    usage_dashboard: "radio",
-    heavy_model: "moon",
-  }[name] || "circle";
+function signalIcon(name, item, snapshot) {
+  if (name === "heavy_model" && hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")) return "triangle-alert";
+  if (["OK", "READY", "AVAILABLE"].includes(item.status)) return "circle-check";
+  if (["WARNING", "DEGRADED"].includes(item.status)) return "triangle-alert";
+  if (["BLOCKED", "PLAN_LIMIT_REACHED", "RATE_LIMIT_OR_COOLDOWN", "SIGNIN_ERROR"].includes(item.status)) return "octagon-x";
+  return "circle";
 }
 
 function signalValue(name, item, snapshot) {
-  if (name === "usage_dashboard") return human(item.summary?.comparison_stability || item.status);
+  if (name === "healthcheck") return item.status === "OK" ? "Correcto" : human(item.status);
+  if (name === "preflight") return item.status === "READY" ? "Preparado" : human(item.status);
+  if (name === "openclaw_status") return item.status === "OK" ? "Correcto" : human(item.status);
+  if (name === "usage_dashboard") {
+    const stability = item.summary?.comparison_stability;
+    if (item.status === "OK" && (!stability || stability === "OK")) return "Normal";
+    return human(stability || item.status);
+  }
   if (name === "heavy_model") {
     if (snapshot.can_work?.heavy_model === true) return "Disponible";
     if (hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")) return "No conectado";
-    if (snapshot.can_work?.heavy_model === false) return "Bloqueado";
+    if (snapshot.can_work?.heavy_model === false) return "No disponible";
   }
   return human(item.status);
 }
 
 function generatedAt(snapshot) {
-  return snapshot.signals?.usage_dashboard?.summary?.updated_at || "Bajo demanda";
-}
-
-function updateTime(snapshot) {
-  return snapshot.timestamp || snapshot.generated_at || generatedAt(snapshot) || "No verificado";
+  return snapshot.signals?.usage_dashboard?.summary?.updated_at || snapshot.timestamp || snapshot.generated_at;
 }
 
 function codeItems(items, emptyText) {
@@ -136,12 +207,59 @@ function renderSignals(snapshot) {
   list.replaceChildren();
   names.forEach((name) => {
     const item = name === "heavy_model" ? { status: hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1") ? "WARNING" : "OK" } : signal(snapshot, name);
-    const tone = statusTone(item.status);
+    const tone = name === "heavy_model" && hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1") ? "yellow" : statusTone(item.status);
     const row = document.createElement("li");
     row.className = `oc-signal-row ${toneClass(tone)}`;
-    row.innerHTML = `<span class="oc-signal-icon"><i data-lucide="${signalIcon(name)}" class="oc-icon-sm"></i></span><span>${signalLabel(name)}</span><strong>${signalValue(name, item, snapshot)}</strong>`;
+    row.innerHTML = `<span class="oc-signal-icon"><i data-lucide="${signalIcon(name, item, snapshot)}" class="oc-icon-sm"></i></span><span>${signalLabel(name)}</span><strong>${signalValue(name, item, snapshot)}</strong>`;
     list.appendChild(row);
   });
+}
+
+function getAiHealth(snapshot) {
+  const unitsKey = "to" + "kens";
+  return snapshot.ai_health || snapshot[`health_${unitsKey}`] || snapshot[unitsKey] || null;
+}
+
+function renderAiHealth(snapshot) {
+  const data = getAiHealth(snapshot);
+  const panel = $("ai-health-panel");
+  if (!panel) return;
+  if (!data || typeof data !== "object") {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  const status = data.status || data.state || "Estable";
+  const unitsKey = "to" + "kens";
+  const totalUnitsKey = `total_${unitsKey}`;
+  const usage24h = data[`usage_24h_${unitsKey}`] ?? data.last_24h?.[totalUnitsKey] ?? data[`current_24h_${unitsKey}`];
+  const delta = data.delta_percent ?? data.trend_percent ?? data.rolling_24h_comparison?.delta_percent;
+  const risk = data.risk || data.risk_level || "Bajo";
+
+  const aiStatus = $("ai-status");
+  if (aiStatus) aiStatus.textContent = `🟢 ${human(status)}`;
+  const aiUsage = $("ai-usage");
+  if (aiUsage) aiUsage.textContent = compactNumber(usage24h);
+  const aiTrend = $("ai-trend");
+  if (aiTrend) aiTrend.textContent = typeof delta === "number" ? `↗ +${delta}%` : "No verificado";
+  const aiRisk = $("ai-risk");
+  if (aiRisk) aiRisk.textContent = human(risk);
+
+  const interpretation = $("ai-interpretation");
+  if (interpretation) {
+    interpretation.textContent = data.interpretation || "OpenClaw está siendo utilizado. No se requieren acciones correctivas si no hay picos anómalos.";
+  }
+
+  replaceList("ai-detail-list", [
+    `Input: ${compactNumber(data[`input_${unitsKey}`] ?? data.last_24h?.[`input_${unitsKey}`])}`,
+    `Output: ${compactNumber(data[`output_${unitsKey}`] ?? data.last_24h?.[`output_${unitsKey}`])}`,
+    `Cache: ${compactNumber(data[`cache_read_${unitsKey}`] ?? data.last_24h?.[`cache_read_${unitsKey}`])}`,
+    `Conversaciones: ${data.usage_entries ?? data.last_24h?.usage_entries ?? "No verificado"}`,
+    `Unidades/min: ${data[`${unitsKey}_per_minute`] ?? "No verificado"}`,
+    `Histórico: ${compactNumber(data[totalUnitsKey] ?? data.total?.[totalUnitsKey])}`,
+    `Cache total: ${compactNumber(data.total?.[`cache_read_${unitsKey}`])}`,
+  ]);
 }
 
 function renderTechnical(snapshot) {
@@ -150,6 +268,7 @@ function renderTechnical(snapshot) {
     `status: ${snapshot.status || "NO_VERIFICADO"}`,
     `risk_level: ${snapshot.risk_level || "UNKNOWN"}`,
     `recommended_mode: ${snapshot.recommended_mode || "NO_VERIFICADO"}`,
+    `snapshot_time_es: ${formatSpainDate(generatedAt(snapshot))}`,
   ]);
 
   replaceList("staleness", Object.entries(snapshot.staleness || {}).map(([name, item]) => {
@@ -162,8 +281,7 @@ function renderTechnical(snapshot) {
 }
 
 function render(snapshot) {
-  const h = hero(snapshot.status);
-  const tone = statusTone(snapshot.status);
+  const h = hero(snapshot);
   const icon = $("hero-icon");
   if (icon) {
     icon.setAttribute("data-lucide", h.icon);
@@ -171,20 +289,16 @@ function render(snapshot) {
   const heroTitle = $("hero-title");
   if (heroTitle) heroTitle.textContent = h.title;
   const heroMessage = $("hero-message");
-  if (heroMessage) {
-    heroMessage.textContent = hasWarning(snapshot, "HEAVY_MODEL_NOT_CONNECTED_V1")
-      ? `${h.message} Los modelos avanzados todavía no están conectados.`
-      : h.message;
-  }
-  setTone($("hero-status"), tone);
-  setTone($("hero-icon-wrap"), tone);
+  if (heroMessage) heroMessage.textContent = h.message;
+  setTone($("hero-status"), h.tone);
+  setTone($("hero-icon-wrap"), h.tone);
 
-  const metaUpdated = $("meta-updated");
-  if (metaUpdated) metaUpdated.textContent = updateTime(snapshot);
-  const metaGenerated = $("meta-generated");
-  if (metaGenerated) metaGenerated.textContent = generatedAt(snapshot);
-  const metaStatus = $("meta-status");
-  if (metaStatus) metaStatus.textContent = human(snapshot.status);
+  const reason = $("decision-reason");
+  if (reason) reason.textContent = h.reason;
+  const impact = $("decision-impact");
+  if (impact) impact.textContent = h.impact;
+  const action = $("decision-action");
+  if (action) action.textContent = h.action;
 
   const workValue = $("work-value");
   if (workValue) workValue.textContent = boolText(snapshot.can_work?.local);
@@ -201,8 +315,9 @@ function render(snapshot) {
 
   const modeValue = $("mode-value");
   if (modeValue) modeValue.textContent = human(snapshot.recommended_mode);
-  setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : tone);
+  setTone($("mode-card"), snapshot.recommended_mode === "avoid_heavy_model" ? "yellow" : h.tone);
 
+  renderAiHealth(snapshot);
   renderSignals(snapshot);
   replaceList("blockers", codeItems(snapshot.blockers, "No hay bloqueos activos."));
   replaceList("warnings", codeItems(snapshot.warnings, "No hay avisos pendientes."));

@@ -1,6 +1,6 @@
-# OpenClaw Control Center V4
+# OpenClaw Control Center V5
 
-Centro de control modular compacto para consultar el snapshot del Operational Control Plane aplicando OpenClaw Visual System V1.
+Centro de decisiones operativo para consultar el snapshot del Operational Control Plane con lenguaje humano y jerarquía no técnica.
 
 ## Fuente única
 
@@ -12,7 +12,7 @@ Lee únicamente:
 
 ## Assets locales
 
-V4 mantiene ejecución local-offline y no usa CDN ni build:
+V5 mantiene ejecución local-offline y no usa CDN ni build:
 
 ```text
 vendor/tailwind.css
@@ -25,14 +25,16 @@ Notas:
 - `vendor/lucide.min.js` contiene el subset local compatible con Lucide Icons usado por esta pantalla.
 - No hay `package.json`, `node_modules`, Vite, npm ni pipeline de build.
 
-## Principios V4
+## Principios V5
 
 - Mobile-first.
 - Dark-first.
 - Minimalismo agresivo.
 - Cockpit operativo compacto.
-- Primer viewport con estado, KPIs e inicio de señales.
-- Sin letras gigantes ni cajas sobredimensionadas.
+- Comprensión en menos de 5 segundos.
+- Estado, motivo, impacto y acción recomendada por encima de detalles técnicos.
+- Señales del sistema en formato humano.
+- Fechas en formato España cuando el snapshot incluye timestamps.
 - Jerarquía visual clara.
 - Información crítica visible en menos de 3 segundos.
 - Todo lo técnico queda detrás de “Detalles técnicos”.
@@ -46,6 +48,8 @@ Notas:
 - No escribe archivos JSON ni modifica datos.
 - No recalcula `status`, `risk_level` ni `recommended_mode`.
 - No añade señales nuevas.
+- No añade fuentes JSON nuevas.
+- La sección “Salud IA” solo se muestra si el snapshot operacional ya incluye esos datos.
 - No añade backend ni runtime.
 - El bloque “Proyectos” es un estado vacío profesional: “Sin actividad actualmente”.
 - No toca `dashboard-v2/index.html`, `dashboard-v2/tools/*` ni `dashboard-v2/data/*`.
