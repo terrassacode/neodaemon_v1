@@ -3,107 +3,111 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Operational Control Plane</title>
+  <title>OpenClaw Control Center</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="shell">
-    <header class="hero">
-      <div class="hero-topline">
-        <p class="eyebrow">Operational Control Plane</p>
-        <label class="theme-toggle">
-          <input id="theme-toggle" type="checkbox" aria-label="Activar modo oscuro">
-          <span>Modo oscuro</span>
-        </label>
+    <header class="topbar" aria-label="Cabecera">
+      <div>
+        <p class="eyebrow">OpenClaw</p>
+        <h1>Control Center</h1>
       </div>
-      <h1>SALUD DEL SISTEMA</h1>
-      <p id="snapshot-note" class="snapshot-note">Estado generado bajo demanda</p>
+      <label class="theme-toggle">
+        <input id="theme-toggle" type="checkbox" aria-label="Activar modo oscuro">
+        <span>Oscuro</span>
+      </label>
     </header>
 
     <section id="missing-state" class="empty-state" hidden>
       Estado no generado todavía. Ejecuta el generador de snapshot.
     </section>
 
-    <section id="dashboard" hidden>
-      <section id="system-banner" class="system-banner tone-gray" aria-label="Estado principal del sistema">
-        <div class="system-banner-icon" id="system-banner-icon">⚪</div>
-        <div>
-          <span class="system-banner-label">Estado general</span>
-          <strong id="system-banner-text">NO VERIFICADO</strong>
-          <p id="system-banner-help">Esperando lectura del sistema.</p>
+    <section id="dashboard" class="control-center" hidden>
+      <section id="hero-status" class="hero-status tone-gray" aria-label="Estado crítico">
+        <div class="hero-main">
+          <div id="hero-icon" class="hero-icon">⚪</div>
+          <div>
+            <span class="section-label">Estado operativo</span>
+            <strong id="hero-title">NO VERIFICADO</strong>
+            <p id="hero-message">Esperando lectura del sistema.</p>
+          </div>
+        </div>
+        <div class="ops-meta" aria-label="Información operativa">
+          <div>
+            <span>Última actualización</span>
+            <strong id="meta-updated">No verificado</strong>
+          </div>
+          <div>
+            <span>Última lectura generada</span>
+            <strong id="meta-generated">Bajo demanda</strong>
+          </div>
+          <div>
+            <span>Estado actual</span>
+            <strong id="meta-status">No verificado</strong>
+          </div>
         </div>
       </section>
 
-      <section class="decision-grid" aria-label="Respuestas rápidas">
-        <article id="local-card" class="decision-card">
-          <span>¿Puedo trabajar?</span>
-          <strong id="local-value">No verificado</strong>
+      <section class="kpi-grid" aria-label="Decisiones principales">
+        <article id="work-card" class="kpi-card">
+          <span>Trabajar</span>
+          <strong id="work-value">No verificado</strong>
         </article>
-        <article id="feature-card" class="decision-card">
-          <span>¿Puedo iniciar una feature?</span>
+        <article id="feature-card" class="kpi-card">
+          <span>Feature</span>
           <strong id="feature-value">No verificado</strong>
         </article>
-        <article id="blocked-card" class="decision-card">
-          <span>¿Hay algo bloqueado?</span>
-          <strong id="blocked-value">No verificado</strong>
+        <article id="blockers-card" class="kpi-card">
+          <span>Bloqueos</span>
+          <strong id="blockers-value">No verificado</strong>
         </article>
-        <article id="action-card" class="decision-card decision-card-wide">
-          <span>¿Qué debo hacer ahora?</span>
-          <strong id="action-value">Revisar estado</strong>
-        </article>
-      </section>
-
-      <section class="summary-strip" aria-label="Estado global">
-        <div><span>Status</span><strong id="global-status">NO VERIFICADO</strong></div>
-        <div><span>Riesgo</span><strong id="risk-level">No verificado</strong></div>
-        <div><span>Modo recomendado</span><strong id="recommended-mode">No verificado</strong></div>
-      </section>
-
-      <section class="signal-grid" aria-label="Señales principales">
-        <article id="healthcheck" class="signal-card">
-          <div class="dot"></div>
-          <h2>Healthcheck</h2>
-          <p class="human">Sistema local no verificado</p>
-          <p class="detail">Sin lectura</p>
-        </article>
-        <article id="preflight" class="signal-card">
-          <div class="dot"></div>
-          <h2>Preflight</h2>
-          <p class="human">No iniciar feature</p>
-          <p class="detail">Sin lectura</p>
-        </article>
-        <article id="openclaw" class="signal-card">
-          <div class="dot"></div>
-          <h2>OpenClaw</h2>
-          <p class="human">OpenClaw no verificado</p>
-          <p class="detail">Sin lectura</p>
-        </article>
-        <article id="usage" class="signal-card">
-          <div class="dot"></div>
-          <h2>Uso de recursos</h2>
-          <p class="human">Uso no verificado</p>
-          <p class="detail">Sin lectura</p>
-        </article>
-        <article id="heavy" class="signal-card">
-          <div class="dot"></div>
-          <h2>Modelo avanzado</h2>
-          <p class="human">No verificado</p>
-          <p class="detail">Sin lectura</p>
+        <article id="mode-card" class="kpi-card">
+          <span>Modo</span>
+          <strong id="mode-value">No verificado</strong>
         </article>
       </section>
 
-      <section class="lists">
-        <article>
-          <h2>Bloqueos</h2>
-          <ul id="blockers"></ul>
+      <section class="control-grid" aria-label="Paneles operativos">
+        <article class="panel panel-signals">
+          <div class="panel-heading">
+            <span class="section-label">Operación</span>
+            <h2>Señales</h2>
+          </div>
+          <ul class="signal-list" id="signal-list"></ul>
         </article>
-        <article>
-          <h2>Avisos</h2>
-          <ul id="warnings"></ul>
+
+        <article class="panel panel-projects">
+          <div class="panel-heading">
+            <span class="section-label">Reserva futura</span>
+            <h2>Proyectos</h2>
+          </div>
+          <div class="project-stats">
+            <div><span>Activos</span><strong>0</strong></div>
+            <div><span>Bloqueados</span><strong>0</strong></div>
+          </div>
+          <p>Espacio reservado para PROJECT_JOB_ENGINE_V1.</p>
         </article>
       </section>
 
-      <details class="technical">
+      <section class="panel notices" aria-label="Avisos y bloqueos">
+        <div class="panel-heading">
+          <span class="section-label">Atención</span>
+          <h2>Avisos y bloqueos</h2>
+        </div>
+        <div class="notice-grid">
+          <div>
+            <h3>Bloqueos</h3>
+            <ul id="blockers"></ul>
+          </div>
+          <div>
+            <h3>Avisos</h3>
+            <ul id="warnings"></ul>
+          </div>
+        </div>
+      </section>
+
+      <details class="technical panel">
         <summary>Detalles técnicos</summary>
         <div class="technical-grid">
           <section>
@@ -119,7 +123,7 @@
             <ul id="confidence"></ul>
           </section>
           <section>
-            <h3>Señales individuales</h3>
+            <h3>Señales raw</h3>
             <ul id="signals"></ul>
           </section>
         </div>
