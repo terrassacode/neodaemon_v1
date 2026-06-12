@@ -127,6 +127,8 @@ body {
 }
 
 .oc-meta,
+.oc-decision,
+.oc-ai-grid div,
 .oc-list-box,
 .oc-empty-soft {
   border: 1px solid var(--panel-border);
@@ -136,6 +138,8 @@ body {
 }
 
 .oc-meta span,
+.oc-decision span,
+.oc-ai-grid span,
 .oc-kpi span {
   display: block;
   color: var(--muted);
@@ -151,6 +155,59 @@ body {
   font-size: 0.92rem;
   font-weight: 800;
   line-height: 1.2;
+}
+
+.oc-decision-grid,
+.oc-ai-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.oc-decision strong,
+.oc-ai-grid strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.oc-interpretation {
+  border: 1px solid var(--panel-border);
+  border-radius: 0.9rem;
+  background: rgba(96, 165, 250, 0.075);
+  padding: 0.75rem;
+}
+
+.oc-interpretation strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.oc-interpretation p {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.oc-ai-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.oc-ai-details ul {
+  margin: 0.55rem 0 0;
+  padding-left: 1.05rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  list-style: disc;
 }
 
 .oc-kpi {
@@ -293,6 +350,8 @@ body {
 
 @media (min-width: 768px) {
   .oc-panel { padding: 1.05rem; }
+  .oc-decision-grid { grid-template-columns: 1fr 1fr 1.35fr; }
+  .oc-ai-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {

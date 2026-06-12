@@ -13,7 +13,7 @@
       <div>
         <p class="oc-label">OpenClaw</p>
         <h1 class="oc-title">Control Center</h1>
-        <p class="oc-subtitle mt-2">Operación local / snapshot activo</p>
+        <p class="oc-subtitle mt-2">Centro de decisiones operativo</p>
       </div>
       <button id="theme-toggle" class="oc-theme-toggle" type="button" aria-label="Cambiar modo visual">
         <i data-lucide="moon" class="oc-icon-sm"></i>
@@ -35,32 +35,56 @@
           <div id="hero-icon-wrap" class="oc-hero-icon oc-tone-gray">
             <i id="hero-icon" data-lucide="circle" class="oc-icon-xl"></i>
           </div>
-          <div>
+          <div class="oc-hero-copy">
             <p class="oc-label">Estado operativo</p>
             <strong id="hero-title" class="oc-hero-title">NO VERIFICADO</strong>
             <p id="hero-message" class="oc-hero-message">Esperando lectura del sistema.</p>
           </div>
         </div>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div class="oc-meta"><span>Última actualización</span><strong id="meta-updated">No verificado</strong></div>
-          <div class="oc-meta"><span>Última lectura</span><strong id="meta-generated">Bajo demanda</strong></div>
-          <div class="oc-meta"><span>Estado actual</span><strong id="meta-status">No verificado</strong></div>
+        <div class="oc-decision-grid">
+          <div class="oc-decision"><span>Motivo</span><strong id="decision-reason">No verificado</strong></div>
+          <div class="oc-decision"><span>Impacto</span><strong id="decision-impact">No verificado</strong></div>
+          <div class="oc-decision"><span>Acción recomendada</span><strong id="decision-action">Revisar estado</strong></div>
         </div>
       </section>
 
       <section class="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Decisiones principales">
-        <article id="work-card" class="oc-kpi oc-tone-gray"><span>Trabajar</span><strong id="work-value">No verificado</strong></article>
-        <article id="feature-card" class="oc-kpi oc-tone-gray"><span>Feature</span><strong id="feature-value">No verificado</strong></article>
-        <article id="blockers-card" class="oc-kpi oc-tone-gray"><span>Bloqueos</span><strong id="blockers-value">No verificado</strong></article>
-        <article id="mode-card" class="oc-kpi oc-tone-gray"><span>Modo</span><strong id="mode-value">No verificado</strong></article>
+        <article id="work-card" class="oc-kpi oc-tone-gray"><span>¿Puedo trabajar?</span><strong id="work-value">No verificado</strong></article>
+        <article id="feature-card" class="oc-kpi oc-tone-gray"><span>¿Puedo abrir feature?</span><strong id="feature-value">No verificado</strong></article>
+        <article id="blockers-card" class="oc-kpi oc-tone-gray"><span>¿Hay bloqueos?</span><strong id="blockers-value">No verificado</strong></article>
+        <article id="mode-card" class="oc-kpi oc-tone-gray"><span>Modo de trabajo</span><strong id="mode-value">No verificado</strong></article>
+      </section>
+
+      <section id="ai-health-panel" class="oc-panel hidden">
+        <div class="oc-panel-head">
+          <div>
+            <p class="oc-label">📊 Salud IA</p>
+            <h2 id="ai-health-title">Estado IA</h2>
+          </div>
+          <i data-lucide="activity" class="oc-icon-md muted"></i>
+        </div>
+        <div class="oc-ai-grid">
+          <div><span>Estado</span><strong id="ai-status">No verificado</strong></div>
+          <div><span>Uso 24h</span><strong id="ai-usage">No verificado</strong></div>
+          <div><span>Tendencia</span><strong id="ai-trend">No verificado</strong></div>
+          <div><span>Riesgo</span><strong id="ai-risk">No verificado</strong></div>
+        </div>
+        <div class="oc-interpretation mt-3">
+          <strong>🧠 Interpretación</strong>
+          <p id="ai-interpretation">No verificado.</p>
+        </div>
+        <details class="oc-ai-details mt-3">
+          <summary>Detalle IA avanzado</summary>
+          <ul id="ai-detail-list"></ul>
+        </details>
       </section>
 
       <section class="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_.85fr]">
         <article class="oc-panel">
           <div class="oc-panel-head">
             <div>
-              <p class="oc-label">Operación</p>
-              <h2>Señales</h2>
+              <p class="oc-label">📡 Sistema</p>
+              <h2>Señales humanas</h2>
             </div>
             <i data-lucide="radio" class="oc-icon-md muted"></i>
           </div>
@@ -70,7 +94,7 @@
         <article class="oc-panel">
           <div class="oc-panel-head">
             <div>
-              <p class="oc-label">Reserva futura</p>
+              <p class="oc-label">📁 Proyectos</p>
               <h2>Proyectos</h2>
             </div>
             <i data-lucide="folder-kanban" class="oc-icon-md muted"></i>
@@ -85,7 +109,7 @@
       <section class="oc-panel">
         <div class="oc-panel-head">
           <div>
-            <p class="oc-label">Atención</p>
+            <p class="oc-label">🟡 Atención</p>
             <h2>Avisos y bloqueos</h2>
           </div>
           <i data-lucide="bell-ring" class="oc-icon-md muted"></i>
@@ -103,7 +127,7 @@
       </section>
 
       <details class="oc-panel oc-technical">
-        <summary><span>Detalles técnicos</span><i data-lucide="chevrons-up-down" class="oc-icon-sm"></i></summary>
+        <summary><span>Ver información técnica avanzada</span><i data-lucide="chevrons-up-down" class="oc-icon-sm"></i></summary>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mt-5">
           <section><h3>Valores técnicos</h3><ul id="technical-values"></ul></section>
           <section><h3>Staleness</h3><ul id="staleness"></ul></section>
