@@ -1541,7 +1541,7 @@ if blockers:
 ok, pr, err = gh_json([
     "pr", "view", str(pr_number),
     "--repo", repo,
-    "--json", "number,state,isDraft,merged,mergeable,mergeStateStatus,baseRefName,headRefName,headRepositoryOwner,headRepository,author,files,commits,statusCheckRollup,url",
+    "--json", "number,state,isDraft,mergedAt,mergeable,mergeStateStatus,baseRefName,headRefName,headRepositoryOwner,headRepository,author,files,commits,statusCheckRollup,url",
 ])
 if not ok or not isinstance(pr, dict):
     emit({
@@ -1560,7 +1560,7 @@ if not ok or not isinstance(pr, dict):
 
 branch = str(pr.get("headRefName") or "")
 state = str(pr.get("state") or "").upper()
-merged = bool(pr.get("merged"))
+merged = bool(pr.get("mergedAt"))
 base = str(pr.get("baseRefName") or "")
 mergeable = str(pr.get("mergeable") or "").upper()
 merge_state = str(pr.get("mergeStateStatus") or "").upper()
