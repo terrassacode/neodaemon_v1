@@ -1337,6 +1337,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 mode = os.environ.get("MODE", "")
 confirmation = os.environ.get("CONFIRMATION", "")
@@ -1558,6 +1559,34 @@ if not ok or not isinstance(pr, dict):
         "rollback": {"required": False, "available": "not_needed_no_changes_made"},
     }, 1)
 
+mergeability_initial = {
+    "mergeable": str(pr.get("mergeable") or "").upper(),
+    "mergeStateStatus": str(pr.get("mergeStateStatus") or "").upper(),
+}
+mergeability_after_refresh = dict(mergeability_initial)
+retry_count = 0
+if "UNKNOWN" in {mergeability_initial["mergeable"], mergeability_initial["mergeStateStatus"]}:
+    retry_count = 1
+    validation("mergeability_refresh", "PASS", "mergeability UNKNOWN; refreshed once after fixed wait")
+    time.sleep(3)
+    retry_ok, retry_pr, retry_err = gh_json([
+        "pr", "view", str(pr_number),
+        "--repo", repo,
+        "--json", "number,state,isDraft,mergedAt,mergeable,mergeStateStatus,baseRefName,headRefName,headRepositoryOwner,headRepository,author,files,commits,statusCheckRollup,url",
+    ])
+    if retry_ok and isinstance(retry_pr, dict):
+        pr = retry_pr
+        mergeability_after_refresh = {
+            "mergeable": str(pr.get("mergeable") or "").upper(),
+            "mergeStateStatus": str(pr.get("mergeStateStatus") or "").upper(),
+        }
+    else:
+        mergeability_after_refresh = {
+            "mergeable": mergeability_initial["mergeable"],
+            "mergeStateStatus": mergeability_initial["mergeStateStatus"],
+            "refresh_error": retry_err,
+        }
+
 branch = str(pr.get("headRefName") or "")
 state = str(pr.get("state") or "").upper()
 merged = bool(pr.get("mergedAt"))
@@ -1630,14 +1659,19 @@ cleanup = {"attempted": False, "local": "not_attempted_check_mode", "remote": "n
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": "mode=check does not modify GitHub, branches, or main"}
 
 if blockers:
+    final_decision = "BLOCKED_WITH_REASON"
     emit({
-        "status": "BLOCKED_WITH_REASON",
+        "status": final_decision,
         "mode": mode,
         "pr": pr_number,
         "branch": branch,
         "commit": commit,
         "files": files,
         "checks": checks,
+        "mergeability_initial": mergeability_initial,
+        "mergeability_after_refresh": mergeability_after_refresh,
+        "retry_count": retry_count,
+        "final_decision": final_decision,
         "validations": validations,
         "blockers": blockers,
         "cleanup": cleanup,
@@ -1646,14 +1680,19 @@ if blockers:
     }, 1)
 
 validation("mode_check_no_mutation", "PASS", "no merge, cleanup, branch change, or GitHub mutation attempted")
+final_decision = "PASS_READY_TO_MERGE"
 emit({
-    "status": "PASS_READY_TO_MERGE",
+    "status": final_decision,
     "mode": mode,
     "pr": pr_number,
     "branch": branch,
     "commit": commit,
     "files": files,
     "checks": checks,
+    "mergeability_initial": mergeability_initial,
+    "mergeability_after_refresh": mergeability_after_refresh,
+    "retry_count": retry_count,
+    "final_decision": final_decision,
     "validations": validations,
     "blockers": [],
     "cleanup": cleanup,
