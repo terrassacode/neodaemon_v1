@@ -274,6 +274,14 @@ require_safe_doc_folder_path() {
       ;;
     dashboard-v2/css/operational-control-plane.css)
       ;;
+    dashboard-v2/operational-control-plane/index.html)
+      ;;
+    dashboard-v2/operational-control-plane/app.js)
+      ;;
+    dashboard-v2/operational-control-plane/style.css)
+      ;;
+    dashboard-v2/operational-control-plane/README.md)
+      ;;
     scripts/project/*.py)
       ;;
     task_manager/README.md)
@@ -319,7 +327,7 @@ validate_doc_folder_publish_file() {
     *.md)
       test -f "$file" || die "doc folder file not found: $file"
       ;;
-    dashboard-v2/operational-control-plane.html|dashboard-v2/js/operational-control-plane.js|dashboard-v2/css/operational-control-plane.css)
+    dashboard-v2/operational-control-plane.html|dashboard-v2/js/operational-control-plane.js|dashboard-v2/css/operational-control-plane.css|dashboard-v2/operational-control-plane/index.html|dashboard-v2/operational-control-plane/app.js|dashboard-v2/operational-control-plane/style.css|dashboard-v2/operational-control-plane/README.md)
       test -f "$file" || die "dashboard file not found: $file"
       ;;
     task_manager/projects/neodaemon.json)
