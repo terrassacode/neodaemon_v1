@@ -5,8 +5,9 @@ Read-only adapter for the first safe real-signal connection:
 - project preflight script
 - project healthcheck script
 - existing usage dashboard JSON
+- controlled OpenClaw status inspection
 
-No provider, OpenClaw status, runtime, network, or UI signals are read.
+No provider, runtime, network, or UI signals are read.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ def term(*parts: str) -> str:
 
 PREFLIGHT_SCRIPT = Path("scripts/project/project_executor_preflight_v1.py")
 HEALTHCHECK_SCRIPT = Path("scripts/project/neodaemon_healthcheck_v1.py")
+OPENCLAW_STATUS_PARSER = Path("scripts/project/openclaw_status_signal_summary_v1.py")
+CONTROL_BRIDGE = Path("tools/neodaemon_executor_bridge.sh")
 USAGE_DASHBOARD = Path("dashboard-v2/data") / term("to", "ken_dashboard_v0_1.json")
 
 
@@ -91,6 +94,51 @@ def read_usage_dashboard() -> tuple[dict[str, Any] | None, str | None]:
     return data, None
 
 
+def read_openclaw_status() -> tuple[dict[str, Any] | None, str | None]:
+    if not CONTROL_BRIDGE.is_file():
+        return None, "OPENCLAW_STATUS_CONTROL_BRIDGE_MISSING"
+    if not OPENCLAW_STATUS_PARSER.is_file():
+        return None, "OPENCLAW_STATUS_PARSER_MISSING"
+
+    request = json.dumps({"action": "inspect_openclaw_native_status_readonly", "command": "status"})
+    proc = subprocess.run(
+        [str(CONTROL_BRIDGE), request],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None, "OPENCLAW_STATUS_CONTROL_READ_FAILED"
+    try:
+        control_payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return None, "OPENCLAW_STATUS_CONTROL_JSON_INVALID"
+    if not isinstance(control_payload, dict) or control_payload.get("status") != "OK":
+        return None, "OPENCLAW_STATUS_CONTROL_NOT_OK"
+
+    parser = subprocess.run(
+        ["python3", str(OPENCLAW_STATUS_PARSER), "--status-text", str(control_payload.get("stdout", ""))],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        check=False,
+    )
+    if parser.returncode != 0:
+        return None, "OPENCLAW_STATUS_PARSE_FAILED"
+    try:
+        parsed = json.loads(parser.stdout)
+    except json.JSONDecodeError:
+        return None, "OPENCLAW_STATUS_PARSE_JSON_INVALID"
+    if not isinstance(parsed, dict):
+        return None, "OPENCLAW_STATUS_PARSE_JSON_NOT_OBJECT"
+    parsed["source_action"] = "inspect_openclaw_native_status_readonly"
+    parsed["source_command"] = "status"
+    return parsed, None
+
+
 def usage_summary(data: dict[str, Any] | None) -> dict[str, Any]:
     if not data:
         return {}
@@ -117,6 +165,7 @@ def build_payload() -> dict[str, Any]:
     healthcheck, healthcheck_error = run_healthcheck()
     preflight, preflight_error = run_preflight()
     usage, usage_error = read_usage_dashboard()
+    openclaw_status, openclaw_status_error = read_openclaw_status()
 
     if healthcheck_error:
         add(warnings, healthcheck_error, "healthcheck signal unavailable")
@@ -127,8 +176,10 @@ def build_payload() -> dict[str, Any]:
     if usage_error:
         add(warnings, usage_error, "usage dashboard unavailable")
 
+    if openclaw_status_error:
+        add(warnings, openclaw_status_error, "OpenClaw status signal unavailable")
+
     add(warnings, "HEAVY_MODEL_NOT_CONNECTED_V1", "heavy model signal intentionally not connected in V1")
-    add(warnings, "OPENCLAW_STATUS_NOT_CONNECTED_V1", "OpenClaw status signal intentionally not connected in V1")
 
     healthcheck_status = healthcheck.get("status") if isinstance(healthcheck, dict) else "NO_VERIFICADO"
     local_can_work = healthcheck.get("local_can_work_now") if isinstance(healthcheck, dict) else None
@@ -151,8 +202,17 @@ def build_payload() -> dict[str, Any]:
         add(blockers, "PREFLIGHT_BLOCKED", "preflight blocks feature start")
         can_start_feature = False
 
+    openclaw_signal_status = openclaw_status.get("status") if isinstance(openclaw_status, dict) else "NO_VERIFICADO"
+    if isinstance(openclaw_status, dict):
+        for item in openclaw_status.get("warnings", []):
+            if isinstance(item, dict):
+                add(warnings, str(item.get("code", "OPENCLAW_STATUS_WARNING")), str(item.get("detail", "OpenClaw status warning")))
+
     if healthcheck_status == "BLOCKED":
         status = "BLOCKED"
+        risk = "HIGH"
+    elif openclaw_signal_status == "DEGRADED":
+        status = "DEGRADED"
         risk = "HIGH"
     elif preflight_error:
         status = "NO_VERIFICADO"
@@ -186,18 +246,18 @@ def build_payload() -> dict[str, Any]:
             "healthcheck": "HIGH" if not healthcheck_error else "NO_VERIFICADO",
             "preflight": "HIGH" if not preflight_error else "NO_VERIFICADO",
             "codex": "NO_VERIFICADO",
-            "openclaw_status": "NO_VERIFICADO",
+            "openclaw_status": "HIGH" if not openclaw_status_error else "NO_VERIFICADO",
             "usage_dashboard": "LOW" if not usage_error else "NO_VERIFICADO",
         },
         "signals": {
             "healthcheck": {"status": healthcheck_status, "confidence": "HIGH" if not healthcheck_error else "NO_VERIFICADO", "summary": healthcheck or {}},
             "preflight": {"status": preflight_status, "confidence": "HIGH" if not preflight_error else "NO_VERIFICADO", "summary": preflight or {}},
             "codex": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
-            "openclaw_status": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
+            "openclaw_status": {"status": openclaw_signal_status, "confidence": "HIGH" if not openclaw_status_error else "NO_VERIFICADO", "summary": openclaw_status or {"connected": False}},
             "usage_dashboard": {"status": "OK" if usage else "NO_VERIFICADO", "confidence": "LOW" if usage else "NO_VERIFICADO", "summary": summary},
         },
         "derived": {
-            "context_percent": None,
+            "context_percent": openclaw_status.get("checks", {}).get("context_percent") if isinstance(openclaw_status, dict) and isinstance(openclaw_status.get("checks"), dict) else None,
             "usage_comparison_stability": summary.get("comparison_stability", "UNKNOWN"),
             "blocking_reason": blockers[0]["code"] if blockers else None,
         },
@@ -268,6 +328,7 @@ def format_human(payload: dict[str, Any]) -> str:
         "Signals:",
         f"  healthcheck ......... {signal_status(payload, 'healthcheck')}",
         f"  preflight ........... {signal_status(payload, 'preflight')}",
+        f"  openclaw status ..... {signal_status(payload, 'openclaw_status')} / {signal_confidence(payload, 'openclaw_status')} confidence",
         f"  usage dashboard ..... {signal_status(payload, 'usage_dashboard')} / {signal_confidence(payload, 'usage_dashboard')} confidence",
         "",
         "Warnings:",
