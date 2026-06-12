@@ -85,6 +85,14 @@ A local operation may be allowed while heavy model work is warning or blocked.
     "usage_comparison_stability": "OK | LOW | UNKNOWN",
     "blocking_reason": null
   },
+  "staleness": {
+    "healthcheck": {
+      "present": true,
+      "stale": "false | true | unknown",
+      "age_seconds": null
+    }
+  },
+  "recommended_mode": "local_only | small_feature | avoid_heavy_model",
   "blockers": [],
   "warnings": [],
   "recommended_next_action": "string",
@@ -271,6 +279,10 @@ Project healthcheck controls only `can_work.local`; project preflight remains th
 Controlled OpenClaw status is read only through `inspect_openclaw_native_status_readonly` with `command=status`, then summarized by `scripts/project/openclaw_status_signal_summary_v1.py`. It must not modify `can_work.local`, `can_work.start_feature`, or `can_work.heavy_model`.
 
 The real-signal adapter also supports `--human`, which renders a human summary derived from the same JSON payload. JSON remains the default output.
+
+The real-signal adapter may include advisory `staleness` and `recommended_mode` fields. They must not change `can_work.local`, `can_work.start_feature`, `can_work.heavy_model`, `status`, or `risk_level`.
+
+`recommended_mode` is advisory only. While `HEAVY_MODEL_NOT_CONNECTED_V1` is present, the recommended mode is `avoid_heavy_model`.
 
 ## Acceptance Criteria For This Contract
 
