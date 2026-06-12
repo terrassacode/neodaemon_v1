@@ -1,136 +1,120 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenClaw Control Center</title>
+  <link rel="stylesheet" href="vendor/tailwind.css">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <main class="shell">
-    <header class="topbar" aria-label="Cabecera">
+<body class="min-h-screen">
+  <main class="mx-auto w-full max-w-6xl px-4 pt-6 pb-12 md:pt-10">
+    <header class="flex items-start justify-between gap-4">
       <div>
-        <p class="eyebrow">OpenClaw</p>
-        <h1>Control Center</h1>
+        <p class="oc-label">OpenClaw</p>
+        <h1 class="oc-title">Control Center</h1>
+        <p class="oc-subtitle mt-2">Operación local / snapshot activo</p>
       </div>
-      <label class="theme-toggle">
-        <input id="theme-toggle" type="checkbox" aria-label="Activar modo oscuro">
-        <span>Oscuro</span>
-      </label>
+      <button id="theme-toggle" class="oc-theme-toggle" type="button" aria-label="Cambiar modo visual">
+        <i data-lucide="moon" class="oc-icon-sm"></i>
+        <span>Dark</span>
+      </button>
     </header>
 
-    <section id="missing-state" class="empty-state" hidden>
-      Estado no generado todavía. Ejecuta el generador de snapshot.
+    <section id="missing-state" class="oc-empty mt-6 hidden">
+      <i data-lucide="triangle-alert" class="oc-icon-lg"></i>
+      <div>
+        <strong>Estado no generado todavía.</strong>
+        <p>Ejecuta el generador de snapshot para activar el Control Center.</p>
+      </div>
     </section>
 
-    <section id="dashboard" class="control-center" hidden>
-      <section id="hero-status" class="hero-status tone-gray" aria-label="Estado crítico">
-        <div class="hero-main">
-          <div id="hero-icon" class="hero-icon">⚪</div>
+    <section id="dashboard" class="mt-6 grid gap-5 hidden">
+      <section id="hero-status" class="oc-hero oc-tone-gray">
+        <div class="flex items-start gap-5">
+          <div id="hero-icon-wrap" class="oc-hero-icon oc-tone-gray">
+            <i id="hero-icon" data-lucide="circle" class="oc-icon-xl"></i>
+          </div>
           <div>
-            <span class="section-label">Estado operativo</span>
-            <strong id="hero-title">NO VERIFICADO</strong>
-            <p id="hero-message">Esperando lectura del sistema.</p>
+            <p class="oc-label">Estado operativo</p>
+            <strong id="hero-title" class="oc-hero-title">NO VERIFICADO</strong>
+            <p id="hero-message" class="oc-hero-message">Esperando lectura del sistema.</p>
           </div>
         </div>
-        <div class="ops-meta" aria-label="Información operativa">
-          <div>
-            <span>Última actualización</span>
-            <strong id="meta-updated">No verificado</strong>
-          </div>
-          <div>
-            <span>Última lectura generada</span>
-            <strong id="meta-generated">Bajo demanda</strong>
-          </div>
-          <div>
-            <span>Estado actual</span>
-            <strong id="meta-status">No verificado</strong>
-          </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="oc-meta"><span>Última actualización</span><strong id="meta-updated">No verificado</strong></div>
+          <div class="oc-meta"><span>Última lectura</span><strong id="meta-generated">Bajo demanda</strong></div>
+          <div class="oc-meta"><span>Estado actual</span><strong id="meta-status">No verificado</strong></div>
         </div>
       </section>
 
-      <section class="kpi-grid" aria-label="Decisiones principales">
-        <article id="work-card" class="kpi-card">
-          <span>Trabajar</span>
-          <strong id="work-value">No verificado</strong>
+      <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Decisiones principales">
+        <article id="work-card" class="oc-kpi oc-tone-gray"><span>Trabajar</span><strong id="work-value">No verificado</strong></article>
+        <article id="feature-card" class="oc-kpi oc-tone-gray"><span>Feature</span><strong id="feature-value">No verificado</strong></article>
+        <article id="blockers-card" class="oc-kpi oc-tone-gray"><span>Bloqueos</span><strong id="blockers-value">No verificado</strong></article>
+        <article id="mode-card" class="oc-kpi oc-tone-gray"><span>Modo</span><strong id="mode-value">No verificado</strong></article>
+      </section>
+
+      <section class="grid grid-cols-1 gap-5 lg:grid-cols-[1.35fr_.85fr]">
+        <article class="oc-panel">
+          <div class="oc-panel-head">
+            <div>
+              <p class="oc-label">Operación</p>
+              <h2>Señales</h2>
+            </div>
+            <i data-lucide="radio" class="oc-icon-md muted"></i>
+          </div>
+          <ul id="signal-list" class="grid gap-3"></ul>
         </article>
-        <article id="feature-card" class="kpi-card">
-          <span>Feature</span>
-          <strong id="feature-value">No verificado</strong>
-        </article>
-        <article id="blockers-card" class="kpi-card">
-          <span>Bloqueos</span>
-          <strong id="blockers-value">No verificado</strong>
-        </article>
-        <article id="mode-card" class="kpi-card">
-          <span>Modo</span>
-          <strong id="mode-value">No verificado</strong>
+
+        <article class="oc-panel">
+          <div class="oc-panel-head">
+            <div>
+              <p class="oc-label">Reserva futura</p>
+              <h2>Proyectos</h2>
+            </div>
+            <i data-lucide="folder-kanban" class="oc-icon-md muted"></i>
+          </div>
+          <div class="oc-empty-soft">
+            <strong>Sin actividad actualmente.</strong>
+            <p>Preparado para futuras automatizaciones.</p>
+          </div>
         </article>
       </section>
 
-      <section class="control-grid" aria-label="Paneles operativos">
-        <article class="panel panel-signals">
-          <div class="panel-heading">
-            <span class="section-label">Operación</span>
-            <h2>Señales</h2>
-          </div>
-          <ul class="signal-list" id="signal-list"></ul>
-        </article>
-
-        <article class="panel panel-projects">
-          <div class="panel-heading">
-            <span class="section-label">Reserva futura</span>
-            <h2>Proyectos</h2>
-          </div>
-          <div class="project-stats">
-            <div><span>Activos</span><strong>0</strong></div>
-            <div><span>Bloqueados</span><strong>0</strong></div>
-          </div>
-          <p>Espacio reservado para PROJECT_JOB_ENGINE_V1.</p>
-        </article>
-      </section>
-
-      <section class="panel notices" aria-label="Avisos y bloqueos">
-        <div class="panel-heading">
-          <span class="section-label">Atención</span>
-          <h2>Avisos y bloqueos</h2>
-        </div>
-        <div class="notice-grid">
+      <section class="oc-panel">
+        <div class="oc-panel-head">
           <div>
+            <p class="oc-label">Atención</p>
+            <h2>Avisos y bloqueos</h2>
+          </div>
+          <i data-lucide="bell-ring" class="oc-icon-md muted"></i>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="oc-list-box">
             <h3>Bloqueos</h3>
             <ul id="blockers"></ul>
           </div>
-          <div>
+          <div class="oc-list-box">
             <h3>Avisos</h3>
             <ul id="warnings"></ul>
           </div>
         </div>
       </section>
 
-      <details class="technical panel">
-        <summary>Detalles técnicos</summary>
-        <div class="technical-grid">
-          <section>
-            <h3>Valores técnicos</h3>
-            <ul id="technical-values"></ul>
-          </section>
-          <section>
-            <h3>Staleness</h3>
-            <ul id="staleness"></ul>
-          </section>
-          <section>
-            <h3>Confidence</h3>
-            <ul id="confidence"></ul>
-          </section>
-          <section>
-            <h3>Señales raw</h3>
-            <ul id="signals"></ul>
-          </section>
+      <details class="oc-panel oc-technical">
+        <summary><span>Detalles técnicos</span><i data-lucide="chevrons-up-down" class="oc-icon-sm"></i></summary>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mt-5">
+          <section><h3>Valores técnicos</h3><ul id="technical-values"></ul></section>
+          <section><h3>Staleness</h3><ul id="staleness"></ul></section>
+          <section><h3>Confidence</h3><ul id="confidence"></ul></section>
+          <section><h3>Señales raw</h3><ul id="signals"></ul></section>
         </div>
       </details>
     </section>
   </main>
 
+  <script src="vendor/lucide.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
