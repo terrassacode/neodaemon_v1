@@ -216,9 +216,11 @@ function initTheme() {
 }
 
 async function loadSnapshot() {
+  let debugError = { reason: "UNKNOWN_ERROR", message: "Error desconocido" };
   try {
     const response = await fetch(SNAPSHOT_URL, { cache: "no-store" });
     if (!response.ok) {
+      debugError = { reason: "HTTP_NOT_OK", message: `${response.status} ${response.statusText}`.trim() };
       console.warn("Control Center snapshot load failed", {
         reason: "HTTP_NOT_OK",
         url: SNAPSHOT_URL,
@@ -232,6 +234,7 @@ async function loadSnapshot() {
     try {
       snapshot = await response.json();
     } catch (error) {
+      debugError = { reason: "JSON_PARSE_ERROR", message: error?.message || String(error) };
       console.warn("Control Center snapshot load failed", {
         reason: "JSON_PARSE_ERROR",
         url: SNAPSHOT_URL,
@@ -243,6 +246,7 @@ async function loadSnapshot() {
     try {
       render(snapshot);
     } catch (error) {
+      debugError = { reason: "RENDER_ERROR", message: error?.message || String(error) };
       console.warn("Control Center snapshot render failed", {
         reason: "RENDER_ERROR",
         url: SNAPSHOT_URL,
@@ -253,6 +257,8 @@ async function loadSnapshot() {
   } catch (_error) {
     $("dashboard").classList.add("hidden");
     $("missing-state").classList.remove("hidden");
+    $("missing-state").querySelector("strong").textContent = debugError.reason;
+    $("missing-state").querySelector("p").textContent = debugError.message;
     renderIcons();
   }
 }
