@@ -284,6 +284,8 @@ The real-signal adapter may include advisory `staleness` and `recommended_mode` 
 
 `recommended_mode` is advisory only. While `HEAVY_MODEL_NOT_CONNECTED_V1` is present, the recommended mode is `avoid_heavy_model`.
 
+The snapshot file `dashboard-v2/data/operational_control_plane_v1.json` is a generated mutable artifact. It is generated on demand by `scripts/project/write_operational_control_plane_snapshot_v1.py`, is not source code, must not enter PRs, and may be deleted and regenerated.
+
 ## Acceptance Criteria For This Contract
 
 - schema version is explicit;
