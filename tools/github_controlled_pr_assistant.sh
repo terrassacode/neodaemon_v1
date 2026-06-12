@@ -268,6 +268,12 @@ require_safe_doc_folder_path() {
   file="$1"
 
   case "$file" in
+    dashboard-v2/operational-control-plane.html)
+      ;;
+    dashboard-v2/js/operational-control-plane.js)
+      ;;
+    dashboard-v2/css/operational-control-plane.css)
+      ;;
     scripts/project/*.py)
       ;;
     task_manager/README.md)
@@ -285,7 +291,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, and scripts/project/**/*.py are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, and exact Operational Control Plane dashboard files are allowed: $file"
       ;;
   esac
 
@@ -312,6 +318,9 @@ validate_doc_folder_publish_file() {
       ;;
     *.md)
       test -f "$file" || die "doc folder file not found: $file"
+      ;;
+    dashboard-v2/operational-control-plane.html|dashboard-v2/js/operational-control-plane.js|dashboard-v2/css/operational-control-plane.css)
+      test -f "$file" || die "dashboard file not found: $file"
       ;;
     task_manager/projects/neodaemon.json)
       python3 -m json.tool "$file" >/dev/null
