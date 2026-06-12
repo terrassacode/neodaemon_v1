@@ -2,8 +2,9 @@
 """Controlled deploy for Operational Control Plane dashboard v1.
 
 Dry-run by default. Use --apply only with explicit human approval.
-Copies exactly four modular dashboard files from this repo to the active
-workspace dashboard path. In V1, --apply may create only one exact directory.
+Copies exactly six modular dashboard files from this repo to the active
+workspace dashboard path. In V3, --apply may create only the exact vendor
+directory when the modular dashboard directory already exists.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from typing import Any
 REPO_ROOT = Path.cwd()
 ACTIVE_DASHBOARD_ROOT = Path("/openclaw/workspace/main/dashboard-v2")
 ALLOWED_CREATE_DIR = ACTIVE_DASHBOARD_ROOT / "operational-control-plane"
+ALLOWED_VENDOR_DIR = ALLOWED_CREATE_DIR / "vendor"
 
 ALLOWED_COPIES = [
     (
@@ -36,6 +38,14 @@ ALLOWED_COPIES = [
     (
         Path("dashboard-v2/operational-control-plane/README.md"),
         ALLOWED_CREATE_DIR / "README.md",
+    ),
+    (
+        Path("dashboard-v2/operational-control-plane/vendor/tailwind.css"),
+        ALLOWED_VENDOR_DIR / "tailwind.css",
+    ),
+    (
+        Path("dashboard-v2/operational-control-plane/vendor/lucide.min.js"),
+        ALLOWED_VENDOR_DIR / "lucide.min.js",
     ),
 ]
 
@@ -69,7 +79,7 @@ def destination_parent_ok(destination: Path) -> tuple[bool, bool]:
     parent = destination.parent
     if parent.is_dir():
         return True, False
-    if parent == ALLOWED_CREATE_DIR and ACTIVE_DASHBOARD_ROOT.is_dir():
+    if parent == ALLOWED_VENDOR_DIR and ALLOWED_CREATE_DIR.is_dir():
         return True, True
     return False, False
 
@@ -116,7 +126,7 @@ def inspect_plan() -> dict[str, Any]:
         "mode": "dry-run",
         "apply": False,
         "active_dashboard_root": str(ACTIVE_DASHBOARD_ROOT),
-        "allowed_create_directory": str(ALLOWED_CREATE_DIR),
+        "allowed_create_directory": str(ALLOWED_VENDOR_DIR),
         "files": files,
         "blockers": blockers,
         "safe": True,
@@ -125,11 +135,11 @@ def inspect_plan() -> dict[str, Any]:
 
 
 def ensure_allowed_directory() -> None:
-    if ALLOWED_CREATE_DIR.is_dir():
+    if ALLOWED_VENDOR_DIR.is_dir():
         return
-    if not ACTIVE_DASHBOARD_ROOT.is_dir():
-        raise RuntimeError("ACTIVE_DASHBOARD_ROOT_NOT_FOUND")
-    ALLOWED_CREATE_DIR.mkdir(mode=0o755, parents=False, exist_ok=False)
+    if not ALLOWED_CREATE_DIR.is_dir():
+        raise RuntimeError("MODULAR_DASHBOARD_DIRECTORY_NOT_FOUND")
+    ALLOWED_VENDOR_DIR.mkdir(mode=0o755, parents=False, exist_ok=False)
 
 
 def apply_plan(plan: dict[str, Any]) -> dict[str, Any]:
@@ -143,7 +153,7 @@ def apply_plan(plan: dict[str, Any]) -> dict[str, Any]:
             source = REPO_ROOT / source_rel
             if not is_exact_allowed(source_rel, destination):
                 raise RuntimeError("NOT_EXACTLY_ALLOWED")
-            if not source.is_file() or destination.parent != ALLOWED_CREATE_DIR or not destination.parent.is_dir():
+            if not source.is_file() or destination.parent not in {ALLOWED_CREATE_DIR, ALLOWED_VENDOR_DIR} or not destination.parent.is_dir():
                 raise RuntimeError("COPY_PRECHECK_FAILED")
             shutil.copy2(source, destination)
             copied.append({"source": as_posix(source_rel), "destination": str(destination)})
