@@ -1447,11 +1447,11 @@ def path_allowed(path):
 
 def check_rollup(rollup):
     if rollup is None:
-        return "NO_VERIFICADO", [], "statusCheckRollup unavailable"
+        return "NO_VERIFICADO", [], [], "statusCheckRollup unavailable"
     if not isinstance(rollup, list):
-        return "NO_VERIFICADO", [], "statusCheckRollup invalid"
+        return "NO_VERIFICADO", [], [], "statusCheckRollup invalid"
     if not rollup:
-        return "PASS", [], "no checks reported; treated as not applicable"
+        return "PASS", [], [], "no checks reported; treated as not applicable"
     checks = []
     bad = []
     pending = []
@@ -1472,12 +1472,12 @@ def check_rollup(rollup):
         elif bucket not in {"SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"}:
             unknown.append(name)
     if bad:
-        return "BLOCKED", checks, "failing checks: " + ", ".join(bad[:5])
+        return "BLOCKED", checks, [], "failing checks: " + ", ".join(bad[:5])
     if pending:
-        return "NO_VERIFICADO", checks, "pending checks: " + ", ".join(pending[:5])
+        return "WAITING", checks, pending, "pending checks: " + ", ".join(pending[:5])
     if unknown:
-        return "NO_VERIFICADO", checks, "unknown checks: " + ", ".join(unknown[:5])
-    return "PASS", checks, "all reported checks passed or are neutral/skipped"
+        return "NO_VERIFICADO", checks, [], "unknown checks: " + ", ".join(unknown[:5])
+    return "PASS", checks, [], "all reported checks passed or are neutral/skipped"
 
 
 if mode != "check":
@@ -1647,11 +1647,13 @@ for item in pr_files:
     if str(item.get("status") or "").lower() in {"removed", "deleted"}:
         blocker("DELETE_REQUIRES_MANUAL_REVIEW", path)
 
-check_status, checks, check_detail = check_rollup(pr.get("statusCheckRollup"))
+check_status, checks, pending_checks, check_detail = check_rollup(pr.get("statusCheckRollup"))
 if check_status == "PASS":
     validation("checks", "PASS", check_detail)
 elif check_status == "BLOCKED":
     blocker("CHECKS_FAILED", check_detail)
+elif check_status == "WAITING":
+    validation("checks", "WAITING_FOR_CHECKS", check_detail)
 else:
     blocker("CHECKS_NOT_VERIFIABLE", check_detail)
 
@@ -1674,6 +1676,30 @@ if blockers:
         "final_decision": final_decision,
         "validations": validations,
         "blockers": blockers,
+        "cleanup": cleanup,
+        "final_main": final_main,
+        "rollback": rollback,
+    }, 1)
+
+if check_status == "WAITING":
+    validation("mode_check_no_mutation", "PASS", "no merge, cleanup, branch change, or GitHub mutation attempted")
+    final_decision = "WAITING_FOR_CHECKS"
+    emit({
+        "status": final_decision,
+        "mode": mode,
+        "pr": pr_number,
+        "branch": branch,
+        "commit": commit,
+        "files": files,
+        "checks": checks,
+        "pending_checks": pending_checks,
+        "recommended_next_action": "retry later when checks complete",
+        "mergeability_initial": mergeability_initial,
+        "mergeability_after_refresh": mergeability_after_refresh,
+        "retry_count": retry_count,
+        "final_decision": final_decision,
+        "validations": validations,
+        "blockers": [],
         "cleanup": cleanup,
         "final_main": final_main,
         "rollback": rollback,
