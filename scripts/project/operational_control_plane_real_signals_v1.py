@@ -15,12 +15,14 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 OUTPUT_LIMIT = 8000
 SCHEMA_VERSION = "operational_control_plane.v1"
+STALE_AFTER_SECONDS = 86400
 
 
 def term(*parts: str) -> str:
@@ -158,6 +160,63 @@ def usage_summary(data: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def signal_staleness(signal: dict[str, Any], now: datetime) -> dict[str, Any]:
+    status = signal.get("status")
+    summary = signal.get("summary", {}) if isinstance(signal.get("summary"), dict) else {}
+    present = bool(status and status != "NO_VERIFICADO")
+    timestamp = summary.get("updated_at") or summary.get("generated_at")
+    parsed = parse_timestamp(timestamp)
+    if not parsed:
+        return {"present": present, "stale": "unknown", "age_seconds": None}
+    age_seconds = max(0, int((now - parsed).total_seconds()))
+    return {"present": present, "stale": age_seconds > STALE_AFTER_SECONDS, "age_seconds": age_seconds}
+
+
+def build_staleness(signals: dict[str, Any]) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    return {
+        name: signal_staleness(signal if isinstance(signal, dict) else {}, now)
+        for name, signal in signals.items()
+    }
+
+
+def has_warning(warnings: list[dict[str, str]], code: str) -> bool:
+    return any(item.get("code") == code for item in warnings)
+
+
+def recommended_mode(payload: dict[str, Any]) -> str:
+    blockers = payload.get("blockers", [])
+    if isinstance(blockers, list) and blockers:
+        return "local_only"
+
+    derived = payload.get("derived", {}) if isinstance(payload.get("derived"), dict) else {}
+    context_percent = derived.get("context_percent")
+    if isinstance(context_percent, int) and context_percent >= 70:
+        return "avoid_heavy_model"
+
+    warnings = payload.get("warnings", [])
+    if isinstance(warnings, list) and has_warning(warnings, "HEAVY_MODEL_NOT_CONNECTED_V1"):
+        return "avoid_heavy_model"
+
+    can_work = payload.get("can_work", {}) if isinstance(payload.get("can_work"), dict) else {}
+    if can_work.get("local") is True and can_work.get("start_feature") is True:
+        return "small_feature"
+
+    return "local_only"
+
+
 def build_payload() -> dict[str, Any]:
     blockers: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
@@ -232,7 +291,15 @@ def build_payload() -> dict[str, Any]:
     if summary.get("comparison_stability") == "LOW":
         add(warnings, "USAGE_COMPARISON_LOW_BASE", "usage comparison base is low confidence")
 
-    return {
+    signals = {
+        "healthcheck": {"status": healthcheck_status, "confidence": "HIGH" if not healthcheck_error else "NO_VERIFICADO", "summary": healthcheck or {}},
+        "preflight": {"status": preflight_status, "confidence": "HIGH" if not preflight_error else "NO_VERIFICADO", "summary": preflight or {}},
+        "codex": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
+        "openclaw_status": {"status": openclaw_signal_status, "confidence": "HIGH" if not openclaw_status_error else "NO_VERIFICADO", "summary": openclaw_status or {"connected": False}},
+        "usage_dashboard": {"status": "OK" if usage else "NO_VERIFICADO", "confidence": "LOW" if usage else "NO_VERIFICADO", "summary": summary},
+    }
+
+    payload = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": None,
         "status": status,
@@ -249,13 +316,7 @@ def build_payload() -> dict[str, Any]:
             "openclaw_status": "HIGH" if not openclaw_status_error else "NO_VERIFICADO",
             "usage_dashboard": "LOW" if not usage_error else "NO_VERIFICADO",
         },
-        "signals": {
-            "healthcheck": {"status": healthcheck_status, "confidence": "HIGH" if not healthcheck_error else "NO_VERIFICADO", "summary": healthcheck or {}},
-            "preflight": {"status": preflight_status, "confidence": "HIGH" if not preflight_error else "NO_VERIFICADO", "summary": preflight or {}},
-            "codex": {"status": "NO_VERIFICADO", "confidence": "NO_VERIFICADO", "summary": {"connected": False}},
-            "openclaw_status": {"status": openclaw_signal_status, "confidence": "HIGH" if not openclaw_status_error else "NO_VERIFICADO", "summary": openclaw_status or {"connected": False}},
-            "usage_dashboard": {"status": "OK" if usage else "NO_VERIFICADO", "confidence": "LOW" if usage else "NO_VERIFICADO", "summary": summary},
-        },
+        "signals": signals,
         "derived": {
             "context_percent": openclaw_status.get("checks", {}).get("context_percent") if isinstance(openclaw_status, dict) and isinstance(openclaw_status.get("checks"), dict) else None,
             "usage_comparison_stability": summary.get("comparison_stability", "UNKNOWN"),
@@ -267,6 +328,9 @@ def build_payload() -> dict[str, Any]:
         "safe": True,
         "logs_redacted": True,
     }
+    payload["staleness"] = build_staleness(signals)
+    payload["recommended_mode"] = recommended_mode(payload)
+    return payload
 
 
 def next_action(status: str, blockers: list[dict[str, str]], warnings: list[dict[str, str]], can_start_feature: bool) -> str:
@@ -314,11 +378,13 @@ def format_human(payload: dict[str, Any]) -> str:
     can_work = payload.get("can_work", {}) if isinstance(payload.get("can_work"), dict) else {}
     warnings = warning_codes(payload)
     blockers = blocker_codes(payload)
+    staleness = payload.get("staleness", {}) if isinstance(payload.get("staleness"), dict) else {}
     lines = [
         "OPERATIONAL CONTROL PLANE",
         "Mode: real-signals-v1",
         f"Status: {payload.get('status', 'NO_VERIFICADO')}",
         f"Risk: {payload.get('risk_level', 'UNKNOWN')}",
+        f"Recommended mode: {payload.get('recommended_mode', 'local_only')}",
         "",
         "Can work:",
         f"  local ............... {yes_no(can_work.get('local'))}",
@@ -331,8 +397,20 @@ def format_human(payload: dict[str, Any]) -> str:
         f"  openclaw status ..... {signal_status(payload, 'openclaw_status')} / {signal_confidence(payload, 'openclaw_status')} confidence",
         f"  usage dashboard ..... {signal_status(payload, 'usage_dashboard')} / {signal_confidence(payload, 'usage_dashboard')} confidence",
         "",
-        "Warnings:",
     ]
+    useful_staleness = [
+        (name, value)
+        for name, value in staleness.items()
+        if isinstance(value, dict) and value.get("age_seconds") is not None
+    ]
+    if useful_staleness:
+        lines.append("Staleness:")
+        for name, value in useful_staleness:
+            stale = value.get("stale")
+            stale_text = "STALE" if stale is True else "fresh" if stale is False else "unknown"
+            lines.append(f"  {name} ..... {value.get('age_seconds')}s / {stale_text}")
+        lines.append("")
+    lines.append("Warnings:")
     lines.extend([f"  {code}" for code in warnings] or ["  none"])
     lines.extend(["", "Blockers:"])
     lines.extend([f"  {code}" for code in blockers] or ["  none"])
