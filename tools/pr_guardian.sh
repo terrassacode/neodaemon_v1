@@ -437,6 +437,131 @@ else:
 cleanup = {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode", "target_branch": branch}
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": f"mode={mode} has not modified GitHub, branches, or main before check pass"}
 
+if mode == "apply" and requested_action == "MERGE" and merged:
+    allowed_already_merged_blockers = {"PR_NOT_OPEN", "PR_ALREADY_MERGED", "MERGEABILITY_NOT_OK"}
+    unsafe_blockers = [item for item in blockers if item.get("code") not in allowed_already_merged_blockers]
+    if unsafe_blockers:
+        final_decision = "BLOCKED_WITH_REASON"
+        emit({
+            "status": final_decision,
+            "mode": mode,
+            "pr": pr_number,
+            "branch": branch,
+            "commit": commit,
+            "files": files,
+            "checks": checks,
+            "mergeability_initial": mergeability_initial,
+            "mergeability_after_refresh": mergeability_after_refresh,
+            "retry_count": retry_count,
+            "final_decision": final_decision,
+            "validations": validations,
+            "blockers": unsafe_blockers,
+            "cleanup": cleanup,
+            "final_main": final_main,
+            "rollback": rollback,
+        }, 1)
+
+    validation("already_merged", "PASS", "PR already merged; attempting exact branch cleanup only")
+    cleanup = {"attempted": True, "local": "pending", "remote": "pending", "target_branch": branch}
+    partial_blockers = []
+
+    fetch_rc, fetch_out, fetch_err = run(["git", "fetch", "origin", "main"], timeout=30)
+    switch_rc, switch_out, switch_err = run(["git", "switch", "main"], timeout=30) if fetch_rc == 0 else (1, "", "fetch failed")
+    pull_rc, pull_out, pull_err = run(["git", "pull", "--ff-only", "origin", "main"], timeout=60) if switch_rc == 0 else (1, "", "switch main failed")
+    if fetch_rc == 0 and switch_rc == 0 and pull_rc == 0:
+        validation("sync_main", "PASS", "main synchronized with origin/main")
+    else:
+        partial_blockers.append({"code": "MAIN_SYNC_FAILED", "detail": fetch_err or switch_err or pull_err or "main sync failed"})
+
+    local_exists_rc, _local_exists_out, _local_exists_err = run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], timeout=10)
+    if local_exists_rc == 0:
+        merged_rc, merged_out, merged_err = run(["git", "branch", "--merged", "main", "--list", branch], timeout=10)
+        if merged_rc == 0 and branch in merged_out:
+            delete_local_rc, delete_local_out, delete_local_err = run(["git", "branch", "-d", branch], timeout=20)
+            if delete_local_rc == 0:
+                cleanup["local"] = "deleted"
+                validation("cleanup_local", "PASS", "exact PR branch deleted locally")
+            else:
+                cleanup["local"] = "failed"
+                partial_blockers.append({"code": "LOCAL_BRANCH_DELETE_FAILED", "detail": delete_local_err or delete_local_out})
+        else:
+            cleanup["local"] = "blocked_not_merged_into_main"
+            partial_blockers.append({"code": "LOCAL_BRANCH_NOT_SAFE_TO_DELETE", "detail": merged_err or "branch is not verified as merged into main"})
+    else:
+        cleanup["local"] = "not_present"
+        validation("cleanup_local", "PASS", "local branch not present")
+
+    remote_exists_rc, _remote_exists_out, _remote_exists_err = run(["git", "ls-remote", "--exit-code", "--heads", "origin", branch], timeout=20)
+    if remote_exists_rc == 0:
+        delete_remote_rc, delete_remote_out, delete_remote_err = run(["git", "push", "origin", "--delete", branch], timeout=60)
+        if delete_remote_rc == 0:
+            cleanup["remote"] = "deleted"
+            validation("cleanup_remote", "PASS", "exact PR branch deleted remotely")
+        else:
+            cleanup["remote"] = "failed"
+            partial_blockers.append({"code": "REMOTE_BRANCH_DELETE_FAILED", "detail": delete_remote_err or delete_remote_out})
+    else:
+        cleanup["remote"] = "not_present"
+        validation("cleanup_remote", "PASS", "remote branch not present")
+
+    final_branch_ok, final_branch = git("branch", "--show-current")
+    final_status_ok, final_status = git("status", "--porcelain")
+    final_main_ok, final_main_sha = git("rev-parse", "main")
+    final_origin_ok, final_origin_sha = git("rev-parse", "origin/main")
+    final_counts_ok, final_counts = git("rev-list", "--left-right", "--count", "main...origin/main")
+    final_main = {
+        "branch": final_branch if final_branch_ok else None,
+        "working_tree_clean": bool(final_status_ok and not final_status),
+        "local_main_sha": final_main_sha if final_main_ok else None,
+        "origin_main_sha": final_origin_sha if final_origin_ok else None,
+        "main_matches_origin": bool(final_counts_ok and final_counts.split() == ["0", "0"]),
+    }
+    if final_main["branch"] != "main" or not final_main["working_tree_clean"] or not final_main["main_matches_origin"]:
+        partial_blockers.append({"code": "FINAL_MAIN_VERIFY_FAILED", "detail": "main branch, clean worktree, or origin match not verified"})
+    else:
+        validation("final_main", "PASS", "main clean and synchronized")
+
+    if partial_blockers:
+        final_decision = "PARTIAL_MERGE_CLEANUP_FAILED"
+        emit({
+            "status": final_decision,
+            "mode": mode,
+            "pr": pr_number,
+            "branch": branch,
+            "commit": commit,
+            "files": files,
+            "checks": checks,
+            "mergeability_initial": mergeability_initial,
+            "mergeability_after_refresh": mergeability_after_refresh,
+            "retry_count": retry_count,
+            "final_decision": final_decision,
+            "validations": validations,
+            "blockers": partial_blockers,
+            "cleanup": cleanup,
+            "final_main": final_main,
+            "rollback": {"required": False, "available": "create controlled revert PR if merged content must be undone"},
+        }, 1)
+
+    final_decision = "PASS_ALREADY_MERGED_AND_CLEANED"
+    emit({
+        "status": final_decision,
+        "mode": mode,
+        "pr": pr_number,
+        "branch": branch,
+        "commit": commit,
+        "files": files,
+        "checks": checks,
+        "mergeability_initial": mergeability_initial,
+        "mergeability_after_refresh": mergeability_after_refresh,
+        "retry_count": retry_count,
+        "final_decision": final_decision,
+        "validations": validations,
+        "blockers": [],
+        "cleanup": cleanup,
+        "final_main": final_main,
+        "rollback": {"required": False, "available": "create controlled revert PR if needed"},
+    })
+
 if blockers:
     final_decision = "BLOCKED_WITH_REASON"
     emit({
