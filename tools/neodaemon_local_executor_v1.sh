@@ -64,7 +64,8 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"git_create_feature_branch_safe","slug":"example-feature-v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_operational_control_plane_dashboard_apply_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
-  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"MERGE PR #123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
 USAGE
 }
 
@@ -1328,7 +1329,7 @@ github_pr_autopilot_merge_and_cleanup() {
   mode="$1"
   confirmation="$2"
 
-  [ "$mode" = "check" ] || [ "$mode" = "apply" ] || die "github_pr_autopilot_merge_and_cleanup only supports mode=check/apply"
+  [ "$mode" = "check" ] || [ "$mode" = "apply" ] || [ "$mode" = "auto" ] || die "github_pr_autopilot_merge_and_cleanup only supports mode=check/apply/auto"
   [ -n "$confirmation" ] || die "confirmation required"
 
   [ -f tools/pr_guardian.sh ] || die "pr_guardian backend missing"
