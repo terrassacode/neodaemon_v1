@@ -44,6 +44,7 @@ Allowed actions:
   git_create_feature_branch_safe
   publish_operational_control_plane_dashboard_apply_v1
   write_operational_control_plane_snapshot_action_v1
+  image_inbox_upload_v1
   github_pr_autopilot_merge_and_cleanup
 
 Examples:
@@ -64,6 +65,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"git_create_feature_branch_safe","slug":"example-feature-v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_operational_control_plane_dashboard_apply_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"image_inbox_upload_v1","source":"/openclaw/workspace/main/uploads/incoming/example.png","uploaded_by":"Albert"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
 USAGE
@@ -1268,6 +1270,92 @@ emit(
 PYJSON
 }
 
+image_inbox_upload_v1() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+
+
+ACTION = "image_inbox_upload_v1"
+SCRIPT = "scripts/project/image_inbox_upload_v1.py"
+
+
+def emit(payload, rc=0):
+    payload.setdefault("action", ACTION)
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    raise SystemExit(rc)
+
+
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    emit({"status": "BLOCKED", "summary": "invalid json request"}, 1)
+
+allowed = {"action", "source", "uploaded_by"}
+if set(data) - allowed or data.get("action") != ACTION:
+    emit({"status": "BLOCKED", "summary": "action accepts only action/source/uploaded_by", "received_fields": sorted(data)}, 1)
+
+source = data.get("source", "")
+uploaded_by = data.get("uploaded_by", "Albert")
+if not isinstance(source, str) or not source:
+    emit({"status": "BLOCKED", "summary": "source required"}, 1)
+if not isinstance(uploaded_by, str) or len(uploaded_by) > 80:
+    emit({"status": "BLOCKED", "summary": "uploaded_by invalid"}, 1)
+
+repo = os.getcwd()
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    emit({"status": "BLOCKED", "summary": "worktree status failed before upload"}, 1)
+if before.stdout.strip():
+    emit({"status": "BLOCKED", "summary": "worktree not clean before upload", "worktree_clean_before": False}, 1)
+
+try:
+    proc = subprocess.run(
+        ["python3", SCRIPT, "--source", source, "--uploaded-by", uploaded_by],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    after_timeout = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    emit({
+        "status": "FAIL",
+        "summary": "upload timeout",
+        "exit_code": 124,
+        "stdout": (exc.stdout or "")[:4000],
+        "stderr": (exc.stderr or "")[:4000],
+        "worktree_clean_before": True,
+        "worktree_clean_after": after_timeout.returncode == 0 and not after_timeout.stdout.strip(),
+    }, 1)
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+after_clean = after.returncode == 0 and not after.stdout.strip()
+
+payload = None
+try:
+    payload = json.loads(proc.stdout)
+except Exception:
+    payload = None
+
+emit({
+    "status": "PASS" if proc.returncode == 0 and after_clean else "FAIL",
+    "script": SCRIPT,
+    "exit_code": proc.returncode,
+    "upload_result": payload,
+    "stdout": proc.stdout[:4000] if payload is None else "",
+    "stderr": proc.stderr[:4000],
+    "worktree_clean_before": True,
+    "worktree_clean_after": after_clean,
+}, 0 if proc.returncode == 0 and after_clean else 1)
+PYJSON
+}
+
 git_create_feature_branch_safe() {
   slug="$1"
 
@@ -1358,6 +1446,8 @@ main() {
   body="$(printf '%s' "$request" | json_get body || true)"
   native_command="$(printf '%s' "$request" | json_get command || true)"
   slug="$(printf '%s' "$request" | json_get slug || true)"
+  source="$(printf '%s' "$request" | json_get source || true)"
+  uploaded_by="$(printf '%s' "$request" | json_get uploaded_by || true)"
 
   case "$action" in
     github_status)
@@ -1408,6 +1498,10 @@ main() {
       ;;
     write_operational_control_plane_snapshot_action_v1)
       write_operational_control_plane_snapshot_action_v1
+      ;;
+    image_inbox_upload_v1)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug" ] || die "image_inbox_upload_v1 accepts only source/uploaded_by"
+      image_inbox_upload_v1
       ;;
     git_create_feature_branch_safe)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "git_create_feature_branch_safe accepts only slug"
