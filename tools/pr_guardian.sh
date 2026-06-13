@@ -15,6 +15,24 @@ import time
 mode = os.environ.get("MODE", "")
 confirmation = os.environ.get("CONFIRMATION", "")
 repo = "terrassacode/neodaemon_v1"
+AUTO_MERGE_MAX_FILES = 1
+AUTO_MERGE_ALLOWLIST = {
+    "OpenClaw-NeoDaemon-Skill/references/approval_strategy_contract.md",
+    "OpenClaw-NeoDaemon-Skill/references/workflow_full_cycle_proof.md",
+    "OpenClaw-NeoDaemon-Skill/references/project_registry_contract.md",
+    "OpenClaw-NeoDaemon-Skill/references/pr_auto_operations.md",
+    "OpenClaw-NeoDaemon-Skill/references/pr_guardian_contract.md",
+}
+AUTO_MERGE_ALLOWLIST_MAX = 5
+AUTO_MERGE_BLOCKED_PREFIXES = (
+    "tools/",
+    "scripts/",
+    "dashboard/",
+    "runtime/",
+    "gateway/",
+    "models/",
+    "scheduler/",
+)
 
 validations = []
 blockers = []
@@ -76,6 +94,78 @@ def gh_json(args):
         return True, json.loads(out), ""
     except json.JSONDecodeError as exc:
         return False, None, f"invalid json: {exc}"
+
+
+def auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, merge_state, check_status, files):
+    reasons = []
+    review_reasons = []
+
+    if len(AUTO_MERGE_ALLOWLIST) > AUTO_MERGE_ALLOWLIST_MAX:
+        review_reasons.append("allowlist exceeds configured maximum")
+    if owner != "terrassacode" or repo_name != "neodaemon_v1":
+        reasons.append("repo is not expected")
+    if author != "terrassacode":
+        review_reasons.append("PR creator is not verified as NeoDaemon expected actor")
+    if base != "main":
+        reasons.append("base is not main")
+    if not branch.startswith("feature/"):
+        reasons.append("branch is not feature/*")
+    if check_status != "PASS":
+        reasons.append("checks are not SUCCESS")
+    if merge_state != "CLEAN":
+        reasons.append("mergeability is not CLEAN")
+    if len(files) != AUTO_MERGE_MAX_FILES:
+        reasons.append("changed file count is not exactly 1")
+
+    details_ok, details, details_err = gh_json(["api", f"repos/{repo}/pulls/{pr_number}/files"])
+    if not details_ok or not isinstance(details, list):
+        review_reasons.append(details_err or "file details are not verifiable")
+        details = []
+
+    file_status = None
+    if len(details) == 1 and isinstance(details[0], dict):
+        file_status = str(details[0].get("status") or "").lower()
+        previous_filename = details[0].get("previous_filename")
+        if file_status == "removed":
+            reasons.append("delete detected")
+        if file_status == "renamed" or previous_filename:
+            reasons.append("rename detected")
+    elif details:
+        reasons.append("file details count is not exactly 1")
+
+    path = files[0] if len(files) == 1 else None
+    if path:
+        if any(path.startswith(prefix) for prefix in AUTO_MERGE_BLOCKED_PREFIXES):
+            reasons.append("blocked path prefix")
+        elif path not in AUTO_MERGE_ALLOWLIST:
+            reasons.append("file is outside exact auto-merge allowlist")
+        else:
+            if details and isinstance(details[0], dict) and "APPROVAL_STRUCTURAL" in str(details[0].get("patch") or ""):
+                reasons.append("APPROVAL_STRUCTURAL detected")
+
+    if review_reasons:
+        return {
+            "status": "PROJECT_REVIEW_REQUIRED",
+            "reasons": review_reasons,
+            "max_files": AUTO_MERGE_MAX_FILES,
+            "allowlist_max": AUTO_MERGE_ALLOWLIST_MAX,
+            "file_status": file_status,
+        }
+    if reasons:
+        return {
+            "status": "AUTO_MERGE_BLOCKED",
+            "reasons": reasons,
+            "max_files": AUTO_MERGE_MAX_FILES,
+            "allowlist_max": AUTO_MERGE_ALLOWLIST_MAX,
+            "file_status": file_status,
+        }
+    return {
+        "status": "AUTO_MERGE_ALLOWED",
+        "reasons": [],
+        "max_files": AUTO_MERGE_MAX_FILES,
+        "allowlist_max": AUTO_MERGE_ALLOWLIST_MAX,
+        "file_status": file_status,
+    }
 
 
 def path_allowed(path):
@@ -153,8 +243,8 @@ def check_rollup(rollup):
     return "PASS", checks, [], "all reported checks passed or are neutral/skipped"
 
 
-if mode not in {"check", "apply"}:
-    blocker("MODE_NOT_ENABLED", "only mode=check/apply is enabled")
+if mode not in {"check", "apply", "auto"}:
+    blocker("MODE_NOT_ENABLED", "only mode=check/apply/auto is enabled")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 
 match = re.fullmatch(r"(CHECK|MERGE) PR #(\d+)", confirmation.strip())
@@ -165,8 +255,13 @@ requested_action = match.group(1)
 if requested_action == "CHECK" and mode != "check":
     blocker("INVALID_CONFIRMATION", "CHECK PR requires mode=check")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
+if mode == "auto" and requested_action != "MERGE":
+    blocker("INVALID_CONFIRMATION", "auto mode requires MERGE PR #123")
+    emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 if requested_action == "MERGE" and mode == "apply":
     validation("requested_action", "PASS", "MERGE PR maps to apply")
+elif requested_action == "MERGE" and mode == "auto":
+    validation("requested_action", "PASS", "MERGE PR maps to auto eligibility")
 elif requested_action == "CHECK" and mode == "check":
     validation("requested_action", "PASS", "CHECK PR maps to check")
 
@@ -301,6 +396,7 @@ else:
 
 owner = (pr.get("headRepositoryOwner") or {}).get("login") if isinstance(pr.get("headRepositoryOwner"), dict) else None
 repo_name = (pr.get("headRepository") or {}).get("name") if isinstance(pr.get("headRepository"), dict) else None
+author = (pr.get("author") or {}).get("login") if isinstance(pr.get("author"), dict) else None
 if owner == "terrassacode" and repo_name == "neodaemon_v1":
     validation("head_repo", "PASS", "expected repository")
 else:
@@ -385,6 +481,30 @@ if check_status == "WAITING":
         "final_main": final_main,
         "rollback": rollback,
     }, 1)
+
+if mode == "auto":
+    eligibility = auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, merge_state, check_status, files)
+    validation("auto_merge_eligibility", eligibility["status"], ", ".join(eligibility.get("reasons") or ["eligible"]))
+    if eligibility["status"] != "AUTO_MERGE_ALLOWED":
+        emit({
+            "status": eligibility["status"],
+            "mode": mode,
+            "pr": pr_number,
+            "branch": branch,
+            "commit": commit,
+            "files": files,
+            "checks": checks,
+            "auto_merge_eligibility": eligibility,
+            "mergeability_initial": mergeability_initial,
+            "mergeability_after_refresh": mergeability_after_refresh,
+            "retry_count": retry_count,
+            "final_decision": eligibility["status"],
+            "validations": validations,
+            "blockers": [],
+            "cleanup": cleanup,
+            "final_main": final_main,
+            "rollback": rollback,
+        }, 1)
 
 if mode == "check":
     validation("mode_check_no_mutation", "PASS", "no merge, cleanup, branch change, or GitHub mutation attempted")
