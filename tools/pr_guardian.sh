@@ -157,13 +157,21 @@ if mode not in {"check", "apply"}:
     blocker("MODE_NOT_ENABLED", "only mode=check/apply is enabled")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 
-match = re.fullmatch(r"MERGE PR #(\d+)", confirmation.strip())
+match = re.fullmatch(r"(CHECK|MERGE) PR #(\d+)", confirmation.strip())
 if not match:
-    blocker("INVALID_CONFIRMATION", "expected exact input: MERGE PR #123")
+    blocker("INVALID_CONFIRMATION", "expected exact input: CHECK PR #123 or MERGE PR #123")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
+requested_action = match.group(1)
+if requested_action == "CHECK" and mode != "check":
+    blocker("INVALID_CONFIRMATION", "CHECK PR requires mode=check")
+    emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
+if requested_action == "MERGE" and mode == "apply":
+    validation("requested_action", "PASS", "MERGE PR maps to apply")
+elif requested_action == "CHECK" and mode == "check":
+    validation("requested_action", "PASS", "CHECK PR maps to check")
 
-pr_number = int(match.group(1))
-validation("input", "PASS", "exact MERGE PR confirmation")
+pr_number = int(match.group(2))
+validation("input", "PASS", f"exact {requested_action} PR confirmation")
 
 ok, root = git("rev-parse", "--show-toplevel")
 if ok:
