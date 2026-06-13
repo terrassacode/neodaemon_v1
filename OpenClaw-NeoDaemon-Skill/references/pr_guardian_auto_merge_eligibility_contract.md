@@ -2,9 +2,9 @@
 
 ## Status
 
-Contract only.
+Contract plus approved PR Guardian eligibility evaluation.
 
-This document does not implement auto-merge, change PR Guardian behavior, create a scheduler, create a queue, change runtime, change gateway, change dashboard behavior, or enable any automatic merge.
+This document does not create a scheduler, create a queue, change runtime, change gateway, change dashboard behavior, or enable broad automatic merge.
 
 ## Mission
 
@@ -18,7 +18,7 @@ and
 auto-merge is explicitly allowed by this contract
 ```
 
-Until implementation is separately approved, this contract authorizes no behavior change.
+The approved implementation may evaluate a PR and proceed only when the output is exactly `AUTO_MERGE_ALLOWED`.
 
 ## Allowed Outputs
 
@@ -115,6 +115,44 @@ Return `PROJECT_REVIEW_REQUIRED` when:
 
 `PROJECT_REVIEW_REQUIRED` is the correct state for policy expansion.
 
+## Apply Behavior
+
+If eligibility is:
+
+```text
+AUTO_MERGE_ALLOWED
+```
+
+PR Guardian may execute the existing protected sequence:
+
+```text
+merge
+sync main
+cleanup local
+cleanup remote
+PASS_MERGED_AND_CLEANED
+```
+
+If eligibility is:
+
+```text
+AUTO_MERGE_BLOCKED
+```
+
+PR Guardian must not merge automatically. The existing manual command remains available:
+
+```text
+MERGE PR #123
+```
+
+If eligibility is:
+
+```text
+PROJECT_REVIEW_REQUIRED
+```
+
+PR Guardian must not merge automatically and must return the reason.
+
 ## Permanent Rule
 
 ```text
@@ -128,10 +166,8 @@ Auto-merge must never be enabled because manual merge feels repetitive. It may b
 
 This contract does not define or implement:
 
-- implementation;
 - scheduler;
 - queue automation;
-- real auto-merge;
 - dashboard behavior;
 - runtime behavior;
 - gateway behavior;
