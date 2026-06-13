@@ -1534,7 +1534,7 @@ if blockers:
         "files": files,
         "validations": validations,
         "blockers": blockers,
-        "cleanup": {"attempted": False, "local": "not_attempted_check_mode", "remote": "not_attempted_check_mode"},
+        "cleanup": {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode"},
         "final_main": final_main,
         "rollback": {"required": False, "available": "not_needed_no_changes_made"},
     }, 1)
@@ -1554,7 +1554,7 @@ if not ok or not isinstance(pr, dict):
         "files": files,
         "validations": validations + [{"name": "github_pr_lookup", "status": "NO_VERIFICADO", "detail": err}],
         "blockers": [{"code": "PR_LOOKUP_FAILED", "detail": "cannot verify PR existence/state"}],
-        "cleanup": {"attempted": False, "local": "not_attempted_check_mode", "remote": "not_attempted_check_mode"},
+        "cleanup": {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode"},
         "final_main": final_main,
         "rollback": {"required": False, "available": "not_needed_no_changes_made"},
     }, 1)
