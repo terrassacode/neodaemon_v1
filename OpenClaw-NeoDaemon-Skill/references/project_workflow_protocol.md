@@ -525,16 +525,18 @@ Claims without evidence should be labeled as assumptions, proposals, or `NO_VERI
 
 The ecosystem should track these metrics over time:
 
-- projects started;
-- projects completed;
-- expected PRs;
-- actual PRs;
-- correct approvals;
-- structural approvals;
-- `PROJECT_REVIEW_REQUIRED` events;
-- average project duration;
-- automatic merges;
-- blocked merges.
+| Metric | Identifier |
+| --- | --- |
+| projects started | `projects_started` |
+| projects completed | `projects_completed` |
+| planned PRs | `planned_prs` |
+| actual PRs | `actual_prs` |
+| correct approvals | `approvals_correct` |
+| structural approvals | `approvals_structural` |
+| `PROJECT_REVIEW_REQUIRED` events | `project_review_required` |
+| average project duration | `average_project_duration` |
+| automatic merges | `automatic_merges` |
+| blocked merges | `blocked_merges` |
 
 Metrics are for governance, not blame.
 
