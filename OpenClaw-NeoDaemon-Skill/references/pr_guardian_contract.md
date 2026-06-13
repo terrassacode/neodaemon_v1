@@ -4,9 +4,15 @@
 
 Contract only.
 
-This document defines the minimum responsibility boundary for a future PR Guardian component.
+This document defines the minimum responsibility boundary for PR Guardian.
 
-It does not implement code, move existing logic, create an agent, create a scheduler, create a queue, or enable automatic merging.
+PR Guardian has a dedicated controlled entrypoint:
+
+```text
+tools/pr_guardian.sh
+```
+
+NeoDaemon invokes PR Guardian through its existing controlled executor action. This contract does not create an agent, scheduler, queue, or automatic merge policy.
 
 ## 2. Mission
 
@@ -133,6 +139,8 @@ PR Guardian checks, merges, and cleans PRs.
 NeoDaemon must not decide to bypass PR Guardian when PR Guardian is the designated merge authority.
 
 NeoDaemon may still propose features, implement changes, validate work, and report evidence. PR Guardian owns only the final PR gate.
+
+NeoDaemon acts as invoker for PR Guardian. It must preserve PR Guardian inputs, outputs, and safety rules when routing requests.
 
 The intended separation is:
 
