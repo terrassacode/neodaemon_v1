@@ -45,6 +45,7 @@ Allowed actions:
   publish_operational_control_plane_dashboard_apply_v1
   write_operational_control_plane_snapshot_action_v1
   image_inbox_upload_v1
+  read_openclaw_gateway_docs
   github_pr_autopilot_merge_and_cleanup
 
 Examples:
@@ -66,6 +67,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"publish_operational_control_plane_dashboard_apply_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"image_inbox_upload_v1","source":"/openclaw/workspace/main/uploads/incoming/example.png","uploaded_by":"Albert"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"read_openclaw_gateway_docs"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
 USAGE
@@ -1356,6 +1358,61 @@ emit({
 PYJSON
 }
 
+read_openclaw_gateway_docs() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+
+ACTION = "read_openclaw_gateway_docs"
+SCRIPT = "scripts/project/read_openclaw_gateway_docs_v1.py"
+
+def emit(payload, rc=0):
+    payload.setdefault("action", ACTION)
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    raise SystemExit(rc)
+
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    emit({"status": "BLOCKED_WITH_REASON", "summary": "invalid json request"}, 1)
+
+allowed = {"action", "paths"}
+if set(data) - allowed or data.get("action") != ACTION:
+    emit({"status": "BLOCKED_WITH_REASON", "summary": "action accepts only action/paths", "received_fields": sorted(data)}, 1)
+
+paths = data.get("paths", [])
+if paths in (None, ""):
+    paths = []
+if not isinstance(paths, list) or not all(isinstance(item, str) for item in paths):
+    emit({"status": "BLOCKED_WITH_REASON", "summary": "paths must be a string list"}, 1)
+
+cmd = ["python3", SCRIPT]
+for path in paths:
+    cmd.extend(["--path", path])
+
+repo = os.getcwd()
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    emit({"status": "BLOCKED_WITH_REASON", "summary": "worktree status failed before read"}, 1)
+
+proc = subprocess.run(cmd, cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20, check=False)
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if after.returncode != 0 or after.stdout != before.stdout:
+    emit({"status": "BLOCKED_WITH_REASON", "summary": "read action changed worktree state"}, 1)
+
+try:
+    payload = json.loads(proc.stdout)
+except Exception:
+    emit({"status": "FAIL", "summary": "script did not return json", "exit_code": proc.returncode, "stdout": proc.stdout[:4000], "stderr": proc.stderr[:4000]}, 1)
+
+emit(payload, proc.returncode)
+PYJSON
+}
+
 git_create_feature_branch_safe() {
   slug="$1"
 
@@ -1502,6 +1559,10 @@ main() {
     image_inbox_upload_v1)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug" ] || die "image_inbox_upload_v1 accepts only source/uploaded_by"
       image_inbox_upload_v1
+      ;;
+    read_openclaw_gateway_docs)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "read_openclaw_gateway_docs accepts only paths"
+      read_openclaw_gateway_docs
       ;;
     git_create_feature_branch_safe)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command" ] || die "git_create_feature_branch_safe accepts only slug"
