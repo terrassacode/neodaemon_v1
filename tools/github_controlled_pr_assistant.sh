@@ -298,6 +298,8 @@ require_safe_doc_folder_path() {
       ;;
     task_manager/projects/neodaemon.json)
       ;;
+    task_manager/project_scopes/PROJECT_IMAGE_INBOX.json)
+      ;;
     OpenClaw-NeoDaemon-Skill/references/*/*.md)
       die "subfolders under OpenClaw-NeoDaemon-Skill/references are not allowed: $file"
       ;;
@@ -309,7 +311,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, exact Image Inbox plugin seed files, exact Operational Control Plane dashboard files, and exact Operational Control Plane vendor files are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, exact Image Inbox project scope JSON, scripts/project/**/*.py, exact Image Inbox plugin seed files, exact Operational Control Plane dashboard files, and exact Operational Control Plane vendor files are allowed: $file"
       ;;
   esac
 
@@ -347,6 +349,9 @@ validate_doc_folder_publish_file() {
       test -f "$file" || die "dashboard file not found: $file"
       ;;
     task_manager/projects/neodaemon.json)
+      python3 -m json.tool "$file" >/dev/null
+      ;;
+    task_manager/project_scopes/PROJECT_IMAGE_INBOX.json)
       python3 -m json.tool "$file" >/dev/null
       ;;
     *)
