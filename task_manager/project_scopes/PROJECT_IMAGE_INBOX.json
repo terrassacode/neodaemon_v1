@@ -1,0 +1,23 @@
+{
+  "project_id": "PROJECT_IMAGE_INBOX",
+  "status": "APPROVED",
+  "gpt_audit": "SCOPE_APPROVED_WITH_REDUCTION",
+  "allowed_paths": [
+    "extensions/image-inbox/package.json",
+    "extensions/image-inbox/openclaw.plugin.json",
+    "extensions/image-inbox/index.ts"
+  ],
+  "blocked_paths": [
+    "gateway/**",
+    "runtime/**",
+    "models/**",
+    "extensions/*",
+    "package-lock.json",
+    "dashboard-v2/**",
+    "scripts/**",
+    "tools/**"
+  ],
+  "max_risk": "MEDIUM",
+  "automerge_allowed": false,
+  "runtime_required": false
+}
