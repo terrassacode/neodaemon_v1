@@ -250,6 +250,101 @@ def project_scope_path_allowed(scope, path):
     return True, "PROJECT_SCOPE_ALLOWED"
 
 
+def project_scope_automerge_dry_run(pr_number, scope, branch, base, owner, repo_name, check_status, merge_state, candidate_files):
+    reasons = []
+    file_statuses = []
+
+    if not scope:
+        reasons.append("PROJECT_SCOPE is not available")
+        project_id = None
+        automerge_allowed = None
+    else:
+        project_id = scope.get("project_id")
+        automerge_allowed = scope.get("automerge_allowed")
+        if scope.get("status") != "APPROVED":
+            reasons.append("PROJECT_SCOPE is not APPROVED")
+        if automerge_allowed is not True:
+            reasons.append("PROJECT_SCOPE automerge_allowed is not true")
+        if scope.get("runtime_required") is True:
+            reasons.append("PROJECT_SCOPE requires runtime proof")
+
+    if owner != "terrassacode" or repo_name != "neodaemon_v1":
+        reasons.append("repo is not expected")
+    if base != "main":
+        reasons.append("base is not main")
+    if not branch.startswith("feature/"):
+        reasons.append("branch is not feature/*")
+    if check_status != "PASS":
+        reasons.append("checks are not SUCCESS")
+    if merge_state != "CLEAN":
+        reasons.append("mergeability is not CLEAN")
+    if not candidate_files:
+        reasons.append("changed files are not verifiable")
+
+    sensitive_fragments = (
+        "au" + "th",
+        "cred" + "ential",
+        "pass" + "word",
+        "private_" + "key",
+        "api_" + "key",
+        "api" + "key",
+        "sec" + "ret",
+        "to" + "ken",
+    )
+    blocked_prefixes = ("gateway/", "runtime/", "models/", "tools/", "scripts/")
+    blocked_exact = {
+        "tools/pr_guardian.sh",
+        "tools/neodaemon_local_executor_v1.sh",
+        "tools/github_controlled_pr_assistant.sh",
+        "package-lock.json",
+    }
+
+    for path in candidate_files:
+        lower = path.lower()
+        if scope:
+            allowed, reason = project_scope_path_allowed(scope, path)
+            if not allowed:
+                reasons.append(f"{path}: {reason}")
+        if path in blocked_exact:
+            reasons.append(f"{path}: protected control file")
+        if any(path.startswith(prefix) for prefix in blocked_prefixes):
+            reasons.append(f"{path}: protected prefix")
+        if any(item in lower for item in sensitive_fragments):
+            reasons.append(f"{path}: sensitive path fragment")
+
+    details_ok, details, details_err = gh_json(["api", f"repos/{repo}/pulls/{pr_number}/files"])
+    if not details_ok or not isinstance(details, list):
+        reasons.append(details_err or "file details are not verifiable")
+        details = []
+    for item in details:
+        if not isinstance(item, dict):
+            reasons.append("file details entry is invalid")
+            continue
+        path = str(item.get("filename") or "")
+        status = str(item.get("status") or "").lower()
+        file_statuses.append({"path": path, "status": status})
+        if status in {"removed", "deleted"}:
+            reasons.append(f"{path}: delete detected")
+        if status == "renamed" or item.get("previous_filename"):
+            reasons.append(f"{path}: rename detected")
+
+    if reasons:
+        return {
+            "status": "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON",
+            "project_id": project_id,
+            "automerge_allowed": automerge_allowed,
+            "reasons": reasons,
+            "file_statuses": file_statuses,
+        }
+    return {
+        "status": "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN",
+        "project_id": project_id,
+        "automerge_allowed": automerge_allowed,
+        "reasons": [],
+        "file_statuses": file_statuses,
+    }
+
+
 def path_allowed(path):
     lower = path.lower()
     sensitive = [
@@ -547,6 +642,25 @@ if project_scope:
         else:
             blocker("MERGEABILITY_NOT_CLEAN_FOR_PROJECT_SCOPE", f"mergeStateStatus={merge_state}")
 
+project_automerge_dry_run = None
+if project_scope:
+    project_automerge_dry_run = project_scope_automerge_dry_run(
+        pr_number,
+        project_scope,
+        branch,
+        base,
+        owner,
+        repo_name,
+        check_status,
+        merge_state,
+        files,
+    )
+    validation(
+        "project_automerge_dry_run",
+        project_automerge_dry_run["status"],
+        ", ".join(project_automerge_dry_run.get("reasons") or ["eligible dry-run only"]),
+    )
+
 cleanup = {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode", "target_branch": branch}
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": f"mode={mode} has not modified GitHub, branches, or main before check pass"}
 
@@ -664,6 +778,7 @@ if mode == "apply" and requested_action == "MERGE" and merged:
         "commit": commit,
         "files": files,
         "checks": checks,
+        "project_automerge_dry_run": project_automerge_dry_run,
         "mergeability_initial": mergeability_initial,
         "mergeability_after_refresh": mergeability_after_refresh,
         "retry_count": retry_count,
@@ -684,8 +799,9 @@ if blockers:
         "branch": branch,
         "commit": commit,
         "files": files,
-        "checks": checks,
-        "mergeability_initial": mergeability_initial,
+            "checks": checks,
+            "project_automerge_dry_run": project_automerge_dry_run,
+            "mergeability_initial": mergeability_initial,
         "mergeability_after_refresh": mergeability_after_refresh,
         "retry_count": retry_count,
         "final_decision": final_decision,
@@ -732,6 +848,7 @@ if mode == "auto":
             "files": files,
             "checks": checks,
             "project_scope": {"project_id": project_scope.get("project_id"), "automerge_allowed": False},
+            "project_automerge_dry_run": project_automerge_dry_run,
             "mergeability_initial": mergeability_initial,
             "mergeability_after_refresh": mergeability_after_refresh,
             "retry_count": retry_count,
@@ -754,6 +871,7 @@ if mode == "auto":
             "files": files,
             "checks": checks,
             "auto_merge_eligibility": eligibility,
+            "project_automerge_dry_run": project_automerge_dry_run,
             "mergeability_initial": mergeability_initial,
             "mergeability_after_refresh": mergeability_after_refresh,
             "retry_count": retry_count,
@@ -776,6 +894,7 @@ if mode == "check":
         "commit": commit,
         "files": files,
         "checks": checks,
+        "project_automerge_dry_run": project_automerge_dry_run,
         "mergeability_initial": mergeability_initial,
         "mergeability_after_refresh": mergeability_after_refresh,
         "retry_count": retry_count,
