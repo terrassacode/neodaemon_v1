@@ -268,6 +268,12 @@ require_safe_doc_folder_path() {
   file="$1"
 
   case "$file" in
+    extensions/image-inbox/package.json)
+      ;;
+    extensions/image-inbox/openclaw.plugin.json)
+      ;;
+    extensions/image-inbox/index.ts)
+      ;;
     dashboard-v2/operational-control-plane.html)
       ;;
     dashboard-v2/js/operational-control-plane.js)
@@ -303,7 +309,7 @@ require_safe_doc_folder_path() {
     OpenClaw-NeoDaemon-Skill/*.md)
       ;;
     *)
-      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, exact Operational Control Plane dashboard files, and exact Operational Control Plane vendor files are allowed: $file"
+      die "only OpenClaw-NeoDaemon-Skill/*.md, OpenClaw-NeoDaemon-Skill/references/*.md, task_manager/README.md, task_manager/projects/neodaemon.json, scripts/project/**/*.py, exact Image Inbox plugin seed files, exact Operational Control Plane dashboard files, and exact Operational Control Plane vendor files are allowed: $file"
       ;;
   esac
 
@@ -325,6 +331,12 @@ validate_doc_folder_publish_file() {
   require_not_protected_path "$file"
 
   case "$file" in
+    extensions/image-inbox/package.json|extensions/image-inbox/openclaw.plugin.json)
+      python3 -m json.tool "$file" >/dev/null
+      ;;
+    extensions/image-inbox/index.ts)
+      test -f "$file" || die "Image Inbox plugin entry file not found: $file"
+      ;;
     scripts/project/*.py)
       python3 -m py_compile "$file"
       ;;
