@@ -534,7 +534,18 @@ if project_scope:
     if project_scope.get("runtime_required") is True:
         blocker("PROJECT_REVIEW_REQUIRED", "project scope requires runtime proof")
     if merge_state != "CLEAN":
-        blocker("MERGEABILITY_NOT_CLEAN_FOR_PROJECT_SCOPE", f"mergeStateStatus={merge_state}")
+        already_merged_cleanup_safe_unknown = (
+            mode == "apply"
+            and requested_action == "MERGE"
+            and merged
+            and state == "MERGED"
+            and merge_state == "UNKNOWN"
+            and check_status == "PASS"
+        )
+        if already_merged_cleanup_safe_unknown:
+            validation("project_scope_mergeability", "PASS", "already merged cleanup accepts mergeStateStatus=UNKNOWN")
+        else:
+            blocker("MERGEABILITY_NOT_CLEAN_FOR_PROJECT_SCOPE", f"mergeStateStatus={merge_state}")
 
 cleanup = {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode", "target_branch": branch}
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": f"mode={mode} has not modified GitHub, branches, or main before check pass"}
