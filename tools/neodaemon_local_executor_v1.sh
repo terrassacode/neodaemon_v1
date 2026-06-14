@@ -46,6 +46,7 @@ Allowed actions:
   write_operational_control_plane_snapshot_action_v1
   image_inbox_upload_v1
   image_inbox_health_runtime_proof_v1
+  image_inbox_internal_health_proof_v1
   read_openclaw_gateway_docs
   github_pr_autopilot_merge_and_cleanup
 
@@ -69,6 +70,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"write_operational_control_plane_snapshot_action_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"image_inbox_upload_v1","source":"/openclaw/workspace/main/uploads/incoming/example.png","uploaded_by":"Albert"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"image_inbox_health_runtime_proof_v1"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"image_inbox_internal_health_proof_v1"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"read_openclaw_gateway_docs"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
@@ -1437,6 +1439,83 @@ emit(payload, proc.returncode)
 PYJSON
 }
 
+image_inbox_internal_health_proof_v1() {
+  REQUEST="$request" python3 - <<'PYJSON'
+import json
+import os
+import subprocess
+
+ACTION = "image_inbox_internal_health_proof_v1"
+SCRIPT = "scripts/project/image_inbox_internal_health_proof_v1.py"
+
+
+def emit(payload, rc=0):
+    payload.setdefault("action", ACTION)
+    payload.setdefault("safe", True)
+    payload.setdefault("logs_redacted", True)
+    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    raise SystemExit(rc)
+
+
+try:
+    data = json.loads(os.environ.get("REQUEST", "{}"))
+except Exception:
+    emit({"status": "BLOCKED", "summary": "invalid json request"}, 1)
+
+if set(data) != {"action"} or data.get("action") != ACTION:
+    emit({"status": "BLOCKED", "summary": "action accepts no parameters", "received_fields": sorted(data)}, 1)
+
+repo = os.getcwd()
+before = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+if before.returncode != 0:
+    emit({"status": "BLOCKED", "summary": "worktree status failed before internal proof"}, 1)
+if before.stdout.strip():
+    emit({"status": "BLOCKED", "summary": "worktree not clean before internal proof", "worktree_clean_before": False}, 1)
+
+if not os.path.isfile(os.path.join(repo, SCRIPT)):
+    emit({"status": "BLOCKED", "summary": "internal proof script not found", "script": SCRIPT}, 1)
+
+try:
+    proc = subprocess.run(
+        ["python3", SCRIPT],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    after_timeout = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    emit({
+        "status": "RUNTIME_INTERNAL_BLOCKED_WITH_REASON",
+        "summary": "internal proof timeout",
+        "exit_code": 124,
+        "stdout": (exc.stdout or "")[:1000],
+        "stderr": (exc.stderr or "")[:1000],
+        "worktree_clean_before": True,
+        "worktree_clean_after": after_timeout.returncode == 0 and not after_timeout.stdout.strip(),
+    }, 1)
+
+after = subprocess.run(["git", "status", "--short"], cwd=repo, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+after_clean = after.returncode == 0 and not after.stdout.strip()
+if not after_clean:
+    emit({"status": "BLOCKED", "summary": "internal proof changed worktree", "worktree_clean_before": True, "worktree_clean_after": False}, 1)
+
+try:
+    payload = json.loads(proc.stdout)
+except Exception:
+    emit({"status": "RUNTIME_INTERNAL_BLOCKED_WITH_REASON", "summary": "script did not return json", "exit_code": proc.returncode, "stdout": proc.stdout[:1000], "stderr": proc.stderr[:1000]}, 1)
+
+payload["script"] = SCRIPT
+payload["exit_code"] = proc.returncode
+payload["stderr"] = proc.stderr[:1000]
+payload["worktree_clean_before"] = True
+payload["worktree_clean_after"] = True
+emit(payload, proc.returncode)
+PYJSON
+}
+
 read_openclaw_gateway_docs() {
   REQUEST="$request" python3 - <<'PYJSON'
 import json
@@ -1642,6 +1721,10 @@ main() {
     image_inbox_health_runtime_proof_v1)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "image_inbox_health_runtime_proof_v1 accepts no parameters"
       image_inbox_health_runtime_proof_v1
+      ;;
+    image_inbox_internal_health_proof_v1)
+      [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "image_inbox_internal_health_proof_v1 accepts no parameters"
+      image_inbox_internal_health_proof_v1
       ;;
     read_openclaw_gateway_docs)
       [ -z "$branch$title$body_file$file$mode$pr_number$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "read_openclaw_gateway_docs accepts only paths"
