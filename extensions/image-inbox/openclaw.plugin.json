@@ -1,0 +1,13 @@
+{
+  "id": "image-inbox",
+  "name": "Image Inbox",
+  "description": "Experimental minimal Image Inbox HTTP route probe.",
+  "contracts": {},
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}
