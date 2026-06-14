@@ -17,6 +17,10 @@ SCAN_ROOTS = [Path("scripts"), Path("tools"), Path("OpenClaw-NeoDaemon-Skill"), 
 BLOCKED_PARTS = {".git", "node_modules", ".venv", "venv", "__pycache__"}
 BLOCKED_FILENAMES = {".env"}
 MAX_FILE_BYTES = 120_000
+RUNTIME_EVIDENCE_EXCLUDED_PATHS = {
+    "scripts/project/coreclaw_startup_context_audit_v1.py",
+    "tools/pr_guardian.sh",
+}
 
 
 def emit(payload: dict, rc: int = 0) -> None:
@@ -81,6 +85,8 @@ def runtime_evidence_from_refs(script_tool_refs: dict[str, list[dict[str, object
     for name, refs in script_tool_refs.items():
         for ref in refs:
             path = str(ref.get("path", ""))
+            if path in RUNTIME_EVIDENCE_EXCLUDED_PATHS:
+                continue
             if not (path.startswith("scripts/") or path.startswith("tools/")):
                 continue
             text = safe_text(Path(path))
