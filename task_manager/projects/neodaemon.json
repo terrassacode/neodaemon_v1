@@ -11,11 +11,13 @@
   ],
   "blocked": [
     "Current runtime state requires live inspection before claims",
-    "Project Executor implementation is not yet active; current execution still uses compatibility routes"
+    "Project Executor implementation is not yet active; current execution still uses compatibility routes",
+    "CORECLAW files exist but are not verified as runtime startup context."
   ],
   "next": [
     "Validate current runtime state through a safe read-only route",
-    "Design Project Executor implementation after documentation model stabilizes"
+    "Design Project Executor implementation after documentation model stabilizes",
+    "Design explicit CORECLAW startup context loader or project reference bridge."
   ],
   "evidence": [
     "PR #100",
@@ -30,7 +32,12 @@
     "OpenClaw-NeoDaemon-Skill/SKILL.md",
     "OpenClaw-NeoDaemon-Skill/MASTER_HANDOFF.md",
     "OpenClaw-NeoDaemon-Skill/references/neodaemon_operating_model_v2.md",
-    "OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md"
+    "OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md",
+    "MEMORY.md",
+    "scripts/project/coreclaw_startup_context_audit_v1.py",
+    "PR #202",
+    "PR #203",
+    "PR #204"
   ],
-  "last_updated": "2026-06-08"
+  "last_updated": "2026-06-14"
 }
