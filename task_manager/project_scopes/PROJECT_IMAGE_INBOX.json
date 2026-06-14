@@ -5,6 +5,7 @@
   "allowed_paths": [
     "extensions/image-inbox/package.json",
     "extensions/image-inbox/openclaw.plugin.json",
+    "extensions/image-inbox/index.js",
     "extensions/image-inbox/index.ts"
   ],
   "blocked_paths": [
