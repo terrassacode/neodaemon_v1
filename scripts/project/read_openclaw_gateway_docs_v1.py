@@ -9,8 +9,9 @@ from pathlib import Path
 
 ACTION = "read_openclaw_gateway_docs"
 MAX_LINES = 250
-MAX_FILES = 12
+MAX_FILES = 16
 ALLOWED_PATHS = {
+    "/usr/lib/node_modules/openclaw/package.json",
     "/usr/lib/node_modules/openclaw/docs/gateway/configuration.md",
     "/usr/lib/node_modules/openclaw/docs/gateway/config-tools.md",
     "/usr/lib/node_modules/openclaw/docs/plugins/architecture.md",
@@ -20,6 +21,9 @@ ALLOWED_PATHS = {
     "/usr/lib/node_modules/openclaw/docs/plugins/sdk-overview.md",
     "/usr/lib/node_modules/openclaw/docs/plugins/sdk-setup.md",
     "/usr/lib/node_modules/openclaw/docs/tools/plugin.md",
+    "/usr/lib/node_modules/openclaw/dist/plugin-sdk/plugin-entry.js",
+    "/usr/lib/node_modules/openclaw/dist/plugins/api-builder.js",
+    "/usr/lib/node_modules/openclaw/dist/plugins/registry.js",
     "/usr/lib/node_modules/openclaw/src/plugins/api-builder.ts",
     "/usr/lib/node_modules/openclaw/src/plugins/registry.ts",
 }
