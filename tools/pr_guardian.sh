@@ -33,6 +33,9 @@ AUTO_MERGE_BLOCKED_PREFIXES = (
     "models/",
     "scheduler/",
 )
+PROJECT_SCOPE_FILES = {
+    "PROJECT_IMAGE_INBOX": "task_manager/project_scopes/PROJECT_IMAGE_INBOX.json",
+}
 
 validations = []
 blockers = []
@@ -166,6 +169,85 @@ def auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, me
         "allowlist_max": AUTO_MERGE_ALLOWLIST_MAX,
         "file_status": file_status,
     }
+
+
+def scope_pattern_matches(pattern, path):
+    if pattern.endswith("/**"):
+        return path.startswith(pattern[:-3] + "/")
+    if pattern.endswith("/*"):
+        prefix = pattern[:-2] + "/"
+        if not path.startswith(prefix):
+            return False
+        return "/" not in path[len(prefix):]
+    return path == pattern
+
+
+def load_project_scope(project_id):
+    rel = PROJECT_SCOPE_FILES.get(project_id)
+    if not rel:
+        return None, f"unknown project_id {project_id}"
+    try:
+        with open(rel, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except OSError as exc:
+        return None, f"scope file not readable: {exc}"
+    except json.JSONDecodeError as exc:
+        return None, f"scope file invalid json: {exc}"
+
+    required = {
+        "project_id",
+        "status",
+        "allowed_paths",
+        "blocked_paths",
+        "max_risk",
+        "automerge_allowed",
+        "runtime_required",
+    }
+    missing = sorted(required - set(data))
+    if missing:
+        return None, "scope missing fields: " + ", ".join(missing)
+    if data.get("project_id") != project_id:
+        return None, "scope project_id mismatch"
+    if data.get("status") != "APPROVED":
+        return None, "scope is not APPROVED"
+    if data.get("max_risk") not in {"LOW", "MEDIUM", "HIGH"}:
+        return None, "scope max_risk invalid"
+    if not isinstance(data.get("automerge_allowed"), bool):
+        return None, "scope automerge_allowed must be boolean"
+    if not isinstance(data.get("runtime_required"), bool):
+        return None, "scope runtime_required must be boolean"
+    if not isinstance(data.get("allowed_paths"), list) or not all(isinstance(item, str) for item in data.get("allowed_paths", [])):
+        return None, "scope allowed_paths must be string list"
+    if not isinstance(data.get("blocked_paths"), list) or not all(isinstance(item, str) for item in data.get("blocked_paths", [])):
+        return None, "scope blocked_paths must be string list"
+    for allowed_path in data["allowed_paths"]:
+        if "*" in allowed_path or allowed_path.startswith("/") or ".." in allowed_path:
+            return None, "scope allowed_paths must be exact safe relative paths"
+    return data, ""
+
+
+def project_scope_for_files(candidate_files):
+    if not candidate_files:
+        return None, None, "no files to match project scope"
+    scope, err = load_project_scope("PROJECT_IMAGE_INBOX")
+    image_inbox_hint = any(path.startswith("extensions/image-inbox/") for path in candidate_files)
+    if not scope:
+        return None, "PROJECT_IMAGE_INBOX" if image_inbox_hint else None, err
+    allowed_paths = set(scope["allowed_paths"])
+    if all(path in allowed_paths for path in candidate_files):
+        return scope, "PROJECT_IMAGE_INBOX", ""
+    if image_inbox_hint:
+        return None, "PROJECT_IMAGE_INBOX", "files are outside PROJECT_IMAGE_INBOX allowed_paths"
+    return None, None, "no matching approved project scope"
+
+
+def project_scope_path_allowed(scope, path):
+    for pattern in scope["blocked_paths"]:
+        if scope_pattern_matches(pattern, path):
+            return False, "blocked by project scope"
+    if path not in set(scope["allowed_paths"]):
+        return False, "outside project scope allowed_paths"
+    return True, "PROJECT_SCOPE_ALLOWED"
 
 
 def path_allowed(path):
@@ -410,15 +492,29 @@ else:
 pr_files = pr.get("files") if isinstance(pr.get("files"), list) else []
 if not pr_files:
     blocker("DIFF_NOT_VERIFIABLE", "no PR files returned")
+
+candidate_files = []
+for item in pr_files:
+    if isinstance(item, dict):
+        candidate_files.append(str(item.get("path") or ""))
+project_scope, project_id, project_scope_error = project_scope_for_files(candidate_files)
+if project_id and not project_scope:
+    blocker("PROJECT_REVIEW_REQUIRED", project_scope_error or "project scope not verifiable")
+elif project_scope:
+    validation("project_scope", "PROJECT_SCOPE_ALLOWED", project_scope["project_id"])
+
 for item in pr_files:
     if not isinstance(item, dict):
         blocker("DIFF_NOT_VERIFIABLE", "file entry is not object")
         continue
     path = str(item.get("path") or "")
     files.append(path)
-    allowed, reason = path_allowed(path)
+    if project_scope:
+        allowed, reason = project_scope_path_allowed(project_scope, path)
+    else:
+        allowed, reason = path_allowed(path)
     if allowed:
-        validation("path_allowed", "PASS", path)
+        validation("path_allowed", "PASS", f"{path}: {reason}")
     else:
         blocker("PATH_BLOCKED", f"{path}: {reason}")
     if str(item.get("status") or "").lower() in {"removed", "deleted"}:
@@ -433,6 +529,12 @@ elif check_status == "WAITING":
     validation("checks", "WAITING_FOR_CHECKS", check_detail)
 else:
     blocker("CHECKS_NOT_VERIFIABLE", check_detail)
+
+if project_scope:
+    if project_scope.get("runtime_required") is True:
+        blocker("PROJECT_REVIEW_REQUIRED", "project scope requires runtime proof")
+    if merge_state != "CLEAN":
+        blocker("MERGEABILITY_NOT_CLEAN_FOR_PROJECT_SCOPE", f"mergeStateStatus={merge_state}")
 
 cleanup = {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode", "target_branch": branch}
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": f"mode={mode} has not modified GitHub, branches, or main before check pass"}
@@ -608,6 +710,27 @@ if check_status == "WAITING":
     }, 1)
 
 if mode == "auto":
+    if project_scope and project_scope.get("automerge_allowed") is False:
+        validation("project_scope_automerge", "PROJECT_AUTOMERGE_BLOCKED", "automerge_allowed=false")
+        emit({
+            "status": "PROJECT_AUTOMERGE_BLOCKED",
+            "mode": mode,
+            "pr": pr_number,
+            "branch": branch,
+            "commit": commit,
+            "files": files,
+            "checks": checks,
+            "project_scope": {"project_id": project_scope.get("project_id"), "automerge_allowed": False},
+            "mergeability_initial": mergeability_initial,
+            "mergeability_after_refresh": mergeability_after_refresh,
+            "retry_count": retry_count,
+            "final_decision": "PROJECT_AUTOMERGE_BLOCKED",
+            "validations": validations,
+            "blockers": [],
+            "cleanup": cleanup,
+            "final_main": final_main,
+            "rollback": rollback,
+        }, 1)
     eligibility = auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, merge_state, check_status, files)
     validation("auto_merge_eligibility", eligibility["status"], ", ".join(eligibility.get("reasons") or ["eligible"]))
     if eligibility["status"] != "AUTO_MERGE_ALLOWED":
