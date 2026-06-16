@@ -10,6 +10,7 @@ export default definePluginEntry({
     api.registerHttpRoute({
       method: "GET",
       path: "/plugin/image-inbox/health",
+      auth: "gateway",
       async handler() {
         return new Response(JSON.stringify(healthResponse), {
           status: 200,
