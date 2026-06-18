@@ -462,8 +462,8 @@ def check_rollup(rollup):
     return "PASS", checks, [], "all reported checks passed or are neutral/skipped"
 
 
-if mode not in {"check", "apply", "auto"}:
-    blocker("MODE_NOT_ENABLED", "only mode=check/apply/auto is enabled")
+if mode not in {"check", "apply", "auto", "dry-run"}:
+    blocker("MODE_NOT_ENABLED", "only mode=check/apply/auto/dry-run is enabled")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 
 match = re.fullmatch(r"(CHECK|MERGE) PR #(\d+)", confirmation.strip())
@@ -471,8 +471,8 @@ if not match:
     blocker("INVALID_CONFIRMATION", "expected exact input: CHECK PR #123 or MERGE PR #123")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 requested_action = match.group(1)
-if requested_action == "CHECK" and mode != "check":
-    blocker("INVALID_CONFIRMATION", "CHECK PR requires mode=check")
+if requested_action == "CHECK" and mode not in {"check", "dry-run"}:
+    blocker("INVALID_CONFIRMATION", "CHECK PR requires mode=check or mode=dry-run")
     emit({"status": "BLOCKED_WITH_REASON", "mode": mode, "blockers": blockers}, 1)
 if mode == "auto" and requested_action != "MERGE":
     blocker("INVALID_CONFIRMATION", "auto mode requires MERGE PR #123")
@@ -481,6 +481,8 @@ if requested_action == "MERGE" and mode == "apply":
     validation("requested_action", "PASS", "MERGE PR maps to apply")
 elif requested_action == "MERGE" and mode == "auto":
     validation("requested_action", "PASS", "MERGE PR maps to auto eligibility")
+elif requested_action == "CHECK" and mode == "dry-run":
+    validation("requested_action", "PASS", "CHECK PR maps to project automerge dry-run")
 elif requested_action == "CHECK" and mode == "check":
     validation("requested_action", "PASS", "CHECK PR maps to check")
 
@@ -700,9 +702,8 @@ if project_scope:
 
 project_automerge_dry_run = None
 if project_scope:
-    project_automerge_dry_run = project_scope_automerge_dry_run(
+    project_automerge_dry_run = evaluate_project_scope_pr(
         pr_number,
-        project_scope,
         branch,
         base,
         owner,
@@ -710,7 +711,10 @@ if project_scope:
         check_status,
         merge_state,
         files,
-    )
+        evaluate_auto=True,
+    )["automerge_decision"]
+    if project_automerge_dry_run["status"] == "PROJECT_AUTOMERGE_ALLOWED":
+        project_automerge_dry_run["status"] = "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN"
     validation(
         "project_automerge_dry_run",
         project_automerge_dry_run["status"],
@@ -719,6 +723,43 @@ if project_scope:
 
 cleanup = {"attempted": False, "local": f"not_attempted_{mode}_mode", "remote": f"not_attempted_{mode}_mode", "target_branch": branch}
 rollback = {"required": False, "available": "not_needed_no_changes_made", "note": f"mode={mode} has not modified GitHub, branches, or main before check pass"}
+
+if mode == "dry-run":
+    if not project_automerge_dry_run:
+        project_automerge_dry_run = {
+            "status": "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON",
+            "project_id": project_id,
+            "automerge_allowed": None,
+            "reasons": ["PROJECT_SCOPE is not available"],
+            "file_statuses": [],
+        }
+    final_decision = project_automerge_dry_run["status"]
+    validation("mode_dry_run_no_mutation", "PASS", "no merge, cleanup, branch change, push, or GitHub mutation attempted")
+    emit({
+        "status": final_decision,
+        "mode": mode,
+        "pr": pr_number,
+        "branch": branch,
+        "commit": commit,
+        "files": files,
+        "checks": checks,
+        "project_automerge_dry_run": project_automerge_dry_run,
+        "dry_run_simulation": {
+            "merge_would_run": final_decision == "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN",
+            "cleanup_would_run": final_decision == "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN",
+            "sync_would_run": final_decision == "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN",
+            "mutation_performed": False,
+        },
+        "mergeability_initial": mergeability_initial,
+        "mergeability_after_refresh": mergeability_after_refresh,
+        "retry_count": retry_count,
+        "final_decision": final_decision,
+        "validations": validations,
+        "blockers": blockers,
+        "cleanup": cleanup,
+        "final_main": final_main,
+        "rollback": rollback,
+    }, 0 if final_decision == "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN" else 1)
 
 if mode == "apply" and requested_action == "MERGE" and merged:
     allowed_already_merged_blockers = {"PR_NOT_OPEN", "PR_ALREADY_MERGED", "MERGEABILITY_NOT_OK"}
