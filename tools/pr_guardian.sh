@@ -340,6 +340,8 @@ def evaluate_project_scope_pr(pr_number, branch, base, owner, repo_name, check_s
 
     for path in candidate_files:
         lower = path.lower()
+        if path.startswith("task_manager/project_scopes/"):
+            auto_reasons.append(f"{path}: project scope files require manual review")
         if path in blocked_exact:
             auto_reasons.append(f"{path}: protected control file")
         if any(path.startswith(prefix) for prefix in blocked_prefixes):
