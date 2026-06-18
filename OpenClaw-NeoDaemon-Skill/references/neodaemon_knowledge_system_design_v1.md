@@ -73,6 +73,7 @@ knowledge/
 ├── protected_zones/
 ├── projects/
 └── incidents/
+```
 
 
 ## Single Source of Truth
@@ -206,5 +207,4 @@ NOT STARTED
 RAG Integration:
 
 NOT STARTED
-
 
