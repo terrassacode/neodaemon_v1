@@ -49,6 +49,7 @@ Allowed actions:
   image_inbox_internal_health_proof_v1
   read_openclaw_gateway_docs
   github_pr_autopilot_merge_and_cleanup
+  github_pr_automerge_dry_run
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -74,6 +75,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"read_openclaw_gateway_docs"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_automerge_dry_run","pr_number":"123"}'
 USAGE
 }
 
@@ -1639,6 +1641,34 @@ github_pr_autopilot_merge_and_cleanup() {
   bash tools/pr_guardian.sh "$mode" "$confirmation"
 }
 
+github_pr_automerge_dry_run() {
+  pr_number="$1"
+
+  printf '%s' "$pr_number" | grep -Eq '^[0-9]+$' || die "pr_number must be numeric"
+
+  [ -f tools/pr_guardian.sh ] || die "pr_guardian backend missing"
+
+  before_status="$(git status --porcelain)"
+  if [ -n "$before_status" ]; then
+    printf '{"status":"BLOCKED","action":"github_pr_automerge_dry_run","summary":"working tree not clean before dry-run","worktree_clean_before":false,"safe":true,"logs_redacted":true}\n'
+    return 1
+  fi
+
+  set +e
+  output="$(bash tools/pr_guardian.sh dry-run "CHECK PR #$pr_number")"
+  rc="$?"
+  set -e
+
+  after_status="$(git status --porcelain)"
+  if [ -n "$after_status" ]; then
+    printf '{"status":"BLOCKED","action":"github_pr_automerge_dry_run","summary":"dry-run changed worktree","worktree_clean_before":true,"worktree_clean_after":false,"safe":true,"logs_redacted":true}\n'
+    return 1
+  fi
+
+  printf '%s\n' "$output"
+  return "$rc"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -1737,6 +1767,10 @@ main() {
     github_pr_autopilot_merge_and_cleanup)
       [ -z "$branch$title$body_file$file$pr_number$message$body$native_command$slug" ] || die "github_pr_autopilot_merge_and_cleanup accepts only mode/confirmation"
       github_pr_autopilot_merge_and_cleanup "$mode" "$confirmation"
+      ;;
+    github_pr_automerge_dry_run)
+      [ -z "$branch$title$body_file$file$mode$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "github_pr_automerge_dry_run accepts only pr_number"
+      github_pr_automerge_dry_run "$pr_number"
       ;;
     *)
       die "unknown action"
