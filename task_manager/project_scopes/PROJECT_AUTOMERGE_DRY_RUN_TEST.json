@@ -3,7 +3,8 @@
   "status": "APPROVED",
   "gpt_audit": "SCOPE_APPROVED_LOW_RISK",
   "allowed_paths": [
-    "OpenClaw-NeoDaemon-Skill/references/automerge_dry_run_test.md"
+    "OpenClaw-NeoDaemon-Skill/references/automerge_dry_run_test.md",
+    "OpenClaw-NeoDaemon-Skill/references/automerge_apply_real_test.md"
   ],
   "blocked_paths": [
     "tools/**",
