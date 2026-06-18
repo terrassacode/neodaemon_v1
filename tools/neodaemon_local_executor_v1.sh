@@ -50,6 +50,7 @@ Allowed actions:
   read_openclaw_gateway_docs
   github_pr_autopilot_merge_and_cleanup
   github_pr_automerge_dry_run
+  autopilot_commit_json_scope_safe
 
 Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_status"}'
@@ -76,6 +77,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_automerge_dry_run","pr_number":"123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_json_scope_safe","branch":"feature/example","file":"task_manager/project_scopes/PROJECT_EXAMPLE.json","title":"chore: add scope","message":"chore: add scope","body":"PR body"}'
 USAGE
 }
 
@@ -827,6 +829,36 @@ PYSCAN
     "$branch" "$file" "$diff_stat"
 
   OK_GITHUB=1 autopilot_commit "$branch" "$title" "$body_file" "$message"
+}
+
+autopilot_commit_json_scope_safe() {
+  branch="$1"
+  file="$2"
+  title="$3"
+  message="$4"
+  body="$5"
+
+  safe_branch "$branch"
+  [ -n "$file" ] || die "file required"
+  [ -n "$title" ] || die "title required"
+  [ -n "$message" ] || die "message required"
+  [ -n "$body" ] || die "body required"
+
+  case "$file" in
+    task_manager/project_scopes/*.json)
+      ;;
+    *)
+      die "file must be task_manager/project_scopes/*.json"
+      ;;
+  esac
+
+  case "$file" in
+    *" "*|*..*|*/../*|../*|/*|*~*|*^*|*:*|*\*)
+      die "unsafe file"
+      ;;
+  esac
+
+  tools/github_controlled_pr_assistant.sh autopilot-commit-json-scope-safe "$branch" "$file" "$title" "$message" "$body"
 }
 
 publish_doc_folder() {
@@ -1725,6 +1757,10 @@ main() {
     autopilot_commit_tools_safe)
       [ -z "$body_file$mode$pr_number$confirmation" ] || die "autopilot_commit_tools_safe does not accept body_file/mode/pr_number/confirmation"
       autopilot_commit_tools_safe "$branch" "$file" "$title" "$message" "$body"
+      ;;
+    autopilot_commit_json_scope_safe)
+      [ -z "$body_file$mode$pr_number$confirmation$native_command$slug$source$uploaded_by" ] || die "autopilot_commit_json_scope_safe accepts only branch/file/title/message/body"
+      autopilot_commit_json_scope_safe "$branch" "$file" "$title" "$message" "$body"
       ;;
     publish_doc_folder)
       [ -z "$file$body_file$mode$pr_number$confirmation" ] || die "publish_doc_folder does not accept file/body_file/mode/pr_number/confirmation"
