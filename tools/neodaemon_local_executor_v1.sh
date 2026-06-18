@@ -50,6 +50,7 @@ Allowed actions:
   read_openclaw_gateway_docs
   github_pr_autopilot_merge_and_cleanup
   github_pr_automerge_dry_run
+  github_pr_automerge_apply
   autopilot_commit_json_scope_safe
 
 Examples:
@@ -77,6 +78,7 @@ Examples:
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"check","confirmation":"CHECK PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_autopilot_merge_and_cleanup","mode":"auto","confirmation":"MERGE PR #123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_automerge_dry_run","pr_number":"123"}'
+  tools/neodaemon_local_executor_v1.sh '{"action":"github_pr_automerge_apply","pr_number":"123"}'
   tools/neodaemon_local_executor_v1.sh '{"action":"autopilot_commit_json_scope_safe","branch":"feature/example","file":"task_manager/project_scopes/PROJECT_EXAMPLE.json","title":"chore: add scope","message":"chore: add scope","body":"PR body"}'
 USAGE
 }
@@ -1701,6 +1703,15 @@ github_pr_automerge_dry_run() {
   return "$rc"
 }
 
+github_pr_automerge_apply() {
+  pr_number="$1"
+
+  printf '%s' "$pr_number" | grep -Eq '^[0-9]+$' || die "pr_number must be numeric"
+
+  [ -f tools/pr_guardian.sh ] || die "pr_guardian backend missing"
+  bash tools/pr_guardian.sh auto "MERGE PR #$pr_number"
+}
+
 main() {
   [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && {
     usage
@@ -1807,6 +1818,10 @@ main() {
     github_pr_automerge_dry_run)
       [ -z "$branch$title$body_file$file$mode$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "github_pr_automerge_dry_run accepts only pr_number"
       github_pr_automerge_dry_run "$pr_number"
+      ;;
+    github_pr_automerge_apply)
+      [ -z "$branch$title$body_file$file$mode$confirmation$message$body$native_command$slug$source$uploaded_by" ] || die "github_pr_automerge_apply accepts only pr_number"
+      github_pr_automerge_apply "$pr_number"
       ;;
     *)
       die "unknown action"
