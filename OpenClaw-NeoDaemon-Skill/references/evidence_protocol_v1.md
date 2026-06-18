@@ -85,6 +85,12 @@ Use when two credible sources disagree, or when design says one thing but runtim
 
 `canonical_sources` must contain only the strongest sources used to answer.
 
+Canonical sources are the primary sources that directly support the answer.
+
+There may be more than one canonical source when the sources are complementary.
+
+If candidate canonical sources conflict, apply `coreclaw_source_hierarchy_v1.md` and report `CONFLICT` unless one source is clearly stale.
+
 Examples:
 
 - merged PR number;
@@ -95,9 +101,17 @@ Examples:
 
 Do not place weak or merely related context in `canonical_sources`.
 
+Do not inflate `canonical_sources` with tangential documents.
+
+If an expected source is missing, return `PARTIAL` or explain why the source was omitted.
+
 ## related_sources
 
 `related_sources` may contain helpful context that is not the authority.
+
+Related sources are useful but secondary.
+
+They may explain history, implementation attempts, or background, but they should not be treated as the basis for `VERIFIED` unless promoted by the source hierarchy.
 
 Examples:
 
