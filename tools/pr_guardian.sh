@@ -250,36 +250,67 @@ def project_scope_path_allowed(scope, path):
     return True, "PROJECT_SCOPE_ALLOWED"
 
 
-def project_scope_automerge_dry_run(pr_number, scope, branch, base, owner, repo_name, check_status, merge_state, candidate_files):
-    reasons = []
+def evaluate_project_scope_pr(pr_number, branch, base, owner, repo_name, check_status, merge_state, candidate_files, evaluate_auto=False):
+    scope, project_id, scope_error = project_scope_for_files(candidate_files)
+    path_decisions = []
+    review_reasons = []
+
+    if project_id and not scope:
+        review_reasons.append(scope_error or "project scope not verifiable")
+
+    if scope:
+        for path in candidate_files:
+            allowed, reason = project_scope_path_allowed(scope, path)
+            path_decisions.append({"path": path, "allowed": allowed, "reason": reason})
+            if not allowed:
+                review_reasons.append(f"{path}: {reason}")
+
+    scope_status = None
+    if project_id and not scope:
+        scope_status = "PROJECT_REVIEW_REQUIRED"
+    elif scope and review_reasons:
+        scope_status = "PROJECT_REVIEW_REQUIRED"
+    elif scope:
+        scope_status = "PROJECT_SCOPE_ALLOWED"
+
+    result = {
+        "project_scope": scope,
+        "project_id": project_id,
+        "scope_status": scope_status,
+        "scope_reasons": review_reasons,
+        "path_decisions": path_decisions,
+        "automerge_decision": None,
+    }
+
+    if not evaluate_auto:
+        return result
+
+    auto_reasons = list(review_reasons)
     file_statuses = []
+    automerge_allowed = scope.get("automerge_allowed") if scope else None
 
     if not scope:
-        reasons.append("PROJECT_SCOPE is not available")
-        project_id = None
-        automerge_allowed = None
+        auto_reasons.append("PROJECT_SCOPE is not available")
     else:
-        project_id = scope.get("project_id")
-        automerge_allowed = scope.get("automerge_allowed")
         if scope.get("status") != "APPROVED":
-            reasons.append("PROJECT_SCOPE is not APPROVED")
+            auto_reasons.append("PROJECT_SCOPE is not APPROVED")
         if automerge_allowed is not True:
-            reasons.append("PROJECT_SCOPE automerge_allowed is not true")
+            auto_reasons.append("PROJECT_SCOPE automerge_allowed is not true")
         if scope.get("runtime_required") is True:
-            reasons.append("PROJECT_SCOPE requires runtime proof")
+            auto_reasons.append("PROJECT_SCOPE requires runtime proof")
 
     if owner != "terrassacode" or repo_name != "neodaemon_v1":
-        reasons.append("repo is not expected")
+        auto_reasons.append("repo is not expected")
     if base != "main":
-        reasons.append("base is not main")
+        auto_reasons.append("base is not main")
     if not branch.startswith("feature/"):
-        reasons.append("branch is not feature/*")
+        auto_reasons.append("branch is not feature/*")
     if check_status != "PASS":
-        reasons.append("checks are not SUCCESS")
+        auto_reasons.append("checks are not SUCCESS")
     if merge_state != "CLEAN":
-        reasons.append("mergeability is not CLEAN")
+        auto_reasons.append("mergeability is not CLEAN")
     if not candidate_files:
-        reasons.append("changed files are not verifiable")
+        auto_reasons.append("changed files are not verifiable")
 
     sensitive_fragments = (
         "au" + "th",
@@ -301,48 +332,59 @@ def project_scope_automerge_dry_run(pr_number, scope, branch, base, owner, repo_
 
     for path in candidate_files:
         lower = path.lower()
-        if scope:
-            allowed, reason = project_scope_path_allowed(scope, path)
-            if not allowed:
-                reasons.append(f"{path}: {reason}")
         if path in blocked_exact:
-            reasons.append(f"{path}: protected control file")
+            auto_reasons.append(f"{path}: protected control file")
         if any(path.startswith(prefix) for prefix in blocked_prefixes):
-            reasons.append(f"{path}: protected prefix")
+            auto_reasons.append(f"{path}: protected prefix")
         if any(item in lower for item in sensitive_fragments):
-            reasons.append(f"{path}: sensitive path fragment")
+            auto_reasons.append(f"{path}: sensitive path fragment")
 
     details_ok, details, details_err = gh_json(["api", f"repos/{repo}/pulls/{pr_number}/files"])
     if not details_ok or not isinstance(details, list):
-        reasons.append(details_err or "file details are not verifiable")
+        auto_reasons.append(details_err or "file details are not verifiable")
         details = []
     for item in details:
         if not isinstance(item, dict):
-            reasons.append("file details entry is invalid")
+            auto_reasons.append("file details entry is invalid")
             continue
         path = str(item.get("filename") or "")
         status = str(item.get("status") or "").lower()
         file_statuses.append({"path": path, "status": status})
         if status in {"removed", "deleted"}:
-            reasons.append(f"{path}: delete detected")
+            auto_reasons.append(f"{path}: delete detected")
         if status == "renamed" or item.get("previous_filename"):
-            reasons.append(f"{path}: rename detected")
+            auto_reasons.append(f"{path}: rename detected")
 
-    if reasons:
-        return {
-            "status": "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON",
-            "project_id": project_id,
-            "automerge_allowed": automerge_allowed,
-            "reasons": reasons,
-            "file_statuses": file_statuses,
-        }
-    return {
-        "status": "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN",
+    if auto_reasons:
+        auto_status = "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON"
+    else:
+        auto_status = "PROJECT_AUTOMERGE_ALLOWED"
+
+    result["automerge_decision"] = {
+        "status": auto_status,
         "project_id": project_id,
         "automerge_allowed": automerge_allowed,
-        "reasons": [],
+        "reasons": auto_reasons,
         "file_statuses": file_statuses,
     }
+    return result
+
+
+def project_scope_automerge_dry_run(pr_number, scope, branch, base, owner, repo_name, check_status, merge_state, candidate_files):
+    decision = evaluate_project_scope_pr(
+        pr_number,
+        branch,
+        base,
+        owner,
+        repo_name,
+        check_status,
+        merge_state,
+        candidate_files,
+        evaluate_auto=True,
+    )["automerge_decision"]
+    if decision["status"] == "PROJECT_AUTOMERGE_ALLOWED":
+        decision["status"] = "PROJECT_AUTOMERGE_ALLOWED_DRY_RUN"
+    return decision
 
 
 def path_allowed(path):
@@ -592,11 +634,23 @@ candidate_files = []
 for item in pr_files:
     if isinstance(item, dict):
         candidate_files.append(str(item.get("path") or ""))
-project_scope, project_id, project_scope_error = project_scope_for_files(candidate_files)
-if project_id and not project_scope:
-    blocker("PROJECT_REVIEW_REQUIRED", project_scope_error or "project scope not verifiable")
-elif project_scope:
-    validation("project_scope", "PROJECT_SCOPE_ALLOWED", project_scope["project_id"])
+project_scope_decision = evaluate_project_scope_pr(
+    pr_number,
+    branch,
+    base,
+    owner,
+    repo_name,
+    "UNKNOWN",
+    merge_state,
+    candidate_files,
+    evaluate_auto=False,
+)
+project_scope = project_scope_decision["project_scope"]
+project_id = project_scope_decision["project_id"]
+if project_scope_decision["scope_status"] == "PROJECT_REVIEW_REQUIRED":
+    blocker("PROJECT_REVIEW_REQUIRED", ", ".join(project_scope_decision.get("scope_reasons") or ["project scope not verifiable"]))
+elif project_scope_decision["scope_status"] == "PROJECT_SCOPE_ALLOWED":
+    validation("project_scope", "PROJECT_SCOPE_ALLOWED", project_scope_decision["project_id"])
 
 for item in pr_files:
     if not isinstance(item, dict):
@@ -605,7 +659,9 @@ for item in pr_files:
     path = str(item.get("path") or "")
     files.append(path)
     if project_scope:
-        allowed, reason = project_scope_path_allowed(project_scope, path)
+        path_decision = next((entry for entry in project_scope_decision["path_decisions"] if entry["path"] == path), None)
+        allowed = bool(path_decision and path_decision["allowed"])
+        reason = path_decision["reason"] if path_decision else "outside project scope allowed_paths"
     else:
         allowed, reason = path_allowed(path)
     if allowed:
