@@ -7,3 +7,5 @@ Expected:
 - PROJECT_SCOPE_ALLOWED
 - PROJECT_AUTOMERGE_ALLOWED_DRY_RUN
 - mutation_performed=false
+
+AUTO apply validation: pending
