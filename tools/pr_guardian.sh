@@ -709,6 +709,7 @@ if project_scope:
             blocker("MERGEABILITY_NOT_CLEAN_FOR_PROJECT_SCOPE", f"mergeStateStatus={merge_state}")
 
 project_automerge_dry_run = None
+project_automerge_apply = None
 if project_scope:
     project_automerge_dry_run = evaluate_project_scope_pr(
         pr_number,
@@ -942,45 +943,38 @@ if check_status == "WAITING":
     }, 1)
 
 if mode == "auto":
-    if project_scope and project_scope.get("automerge_allowed") is False:
-        validation("project_scope_automerge", "PROJECT_AUTOMERGE_BLOCKED", "automerge_allowed=false")
+    project_automerge_apply = evaluate_project_scope_pr(
+        pr_number,
+        branch,
+        base,
+        owner,
+        repo_name,
+        check_status,
+        merge_state,
+        files,
+        evaluate_auto=True,
+    )["automerge_decision"]
+    validation(
+        "project_automerge_apply",
+        project_automerge_apply["status"],
+        ", ".join(project_automerge_apply.get("reasons") or ["eligible for AUTO apply"]),
+    )
+    if project_automerge_apply["status"] != "PROJECT_AUTOMERGE_ALLOWED":
         emit({
-            "status": "PROJECT_AUTOMERGE_BLOCKED",
+            "status": "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON",
             "mode": mode,
             "pr": pr_number,
             "branch": branch,
             "commit": commit,
             "files": files,
             "checks": checks,
-            "project_scope": {"project_id": project_scope.get("project_id"), "automerge_allowed": False},
+            "project_automerge_apply": project_automerge_apply,
             "project_automerge_dry_run": project_automerge_dry_run,
+            "mutation_performed": False,
             "mergeability_initial": mergeability_initial,
             "mergeability_after_refresh": mergeability_after_refresh,
             "retry_count": retry_count,
-            "final_decision": "PROJECT_AUTOMERGE_BLOCKED",
-            "validations": validations,
-            "blockers": [],
-            "cleanup": cleanup,
-            "final_main": final_main,
-            "rollback": rollback,
-        }, 1)
-    eligibility = auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, merge_state, check_status, files)
-    validation("auto_merge_eligibility", eligibility["status"], ", ".join(eligibility.get("reasons") or ["eligible"]))
-    if eligibility["status"] != "AUTO_MERGE_ALLOWED":
-        emit({
-            "status": eligibility["status"],
-            "mode": mode,
-            "pr": pr_number,
-            "branch": branch,
-            "commit": commit,
-            "files": files,
-            "checks": checks,
-            "auto_merge_eligibility": eligibility,
-            "project_automerge_dry_run": project_automerge_dry_run,
-            "mergeability_initial": mergeability_initial,
-            "mergeability_after_refresh": mergeability_after_refresh,
-            "retry_count": retry_count,
-            "final_decision": eligibility["status"],
+            "final_decision": "PROJECT_AUTOMERGE_BLOCKED_WITH_REASON",
             "validations": validations,
             "blockers": [],
             "cleanup": cleanup,
@@ -1023,6 +1017,7 @@ if merge_rc != 0:
         "commit": commit,
         "files": files,
         "checks": checks,
+        "project_automerge_apply": project_automerge_apply,
         "mergeability_initial": mergeability_initial,
         "mergeability_after_refresh": mergeability_after_refresh,
         "retry_count": retry_count,
@@ -1030,6 +1025,7 @@ if merge_rc != 0:
         "validations": validations,
         "blockers": [{"code": "MERGE_FAILED", "detail": merge_err or merge_out or "GitHub merge command failed"}],
         "cleanup": {"attempted": False, "local": "not_attempted_merge_failed", "remote": "not_attempted_merge_failed", "target_branch": branch},
+        "mutation_performed": False,
         "final_main": final_main,
         "rollback": {"required": False, "available": "not_needed_merge_not_confirmed"},
     }, 1)
@@ -1110,6 +1106,7 @@ if partial_blockers:
         "merge_commit": merge_commit,
         "files": files,
         "checks": checks,
+        "project_automerge_apply": project_automerge_apply,
         "mergeability_initial": mergeability_initial,
         "mergeability_after_refresh": mergeability_after_refresh,
         "retry_count": retry_count,
@@ -1117,11 +1114,12 @@ if partial_blockers:
         "validations": validations,
         "blockers": partial_blockers,
         "cleanup": cleanup,
+        "mutation_performed": True,
         "final_main": final_main,
         "rollback": {"required": False, "available": "create controlled revert PR if merged content must be undone"},
     }, 1)
 
-final_decision = "PASS_MERGED_AND_CLEANED"
+final_decision = "PASS_MERGED_AND_CLEANED_AUTO" if mode == "auto" else "PASS_MERGED_AND_CLEANED"
 emit({
     "status": final_decision,
     "mode": mode,
@@ -1131,6 +1129,7 @@ emit({
     "merge_commit": merge_commit,
     "files": files,
     "checks": checks,
+    "project_automerge_apply": project_automerge_apply,
     "mergeability_initial": mergeability_initial,
     "mergeability_after_refresh": mergeability_after_refresh,
     "retry_count": retry_count,
@@ -1138,6 +1137,7 @@ emit({
     "validations": validations,
     "blockers": [],
     "cleanup": cleanup,
+    "mutation_performed": mode == "auto",
     "final_main": final_main,
     "rollback": {"required": False, "available": "create controlled revert PR if needed"},
 })
