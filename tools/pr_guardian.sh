@@ -6,6 +6,7 @@ confirmation="${2:-}"
 
 MODE="$mode" CONFIRMATION="$confirmation" python3 - <<'PYJSON'
 import json
+import fnmatch
 import os
 import re
 import subprocess
@@ -37,6 +38,26 @@ PROJECT_SCOPE_FILES = {
     "PROJECT_IMAGE_INBOX": "task_manager/project_scopes/PROJECT_IMAGE_INBOX.json",
     "PROJECT_AUTOMERGE_DRY_RUN_TEST": "task_manager/project_scopes/PROJECT_AUTOMERGE_DRY_RUN_TEST.json",
 }
+PROJECT_DOMAINS = {
+    "DOCS": {
+        "project_id": "DOCS",
+        "status": "APPROVED",
+        "allowed_paths": [],
+        "allowed_prefixes": ["OpenClaw-NeoDaemon-Skill/references/", "docs/"],
+        "allowed_extensions": [".md", ".json"],
+        "blocked_paths": [
+            "docs/" + "au" + "th/**",
+            "docs/" + "sec" + "rets/**",
+            "docs/**/" + "au" + "th/**",
+            "docs/**/" + "sec" + "rets/**",
+        ],
+        "max_files": 3,
+        "max_risk": "LOW",
+        "automerge_allowed": True,
+        "runtime_required": False,
+    },
+}
+SYSTEM_PREFIXES = ("gateway/", "runtime/", "models/", "au" + "th/", "sec" + "rets/")
 
 validations = []
 blockers = []
@@ -173,6 +194,8 @@ def auto_merge_eligibility(pr_number, branch, base, owner, repo_name, author, me
 
 
 def scope_pattern_matches(pattern, path):
+    if "*" in pattern:
+        return fnmatch.fnmatchcase(path, pattern)
     if pattern.endswith("/**"):
         return path.startswith(pattern[:-3] + "/")
     if pattern.endswith("/*"):
@@ -230,7 +253,14 @@ def load_project_scope(project_id):
 def project_scope_for_files(candidate_files):
     if not candidate_files:
         return None, None, "no files to match project scope"
+    if any(path.startswith(SYSTEM_PREFIXES) for path in candidate_files):
+        return None, "SYSTEM", "SYSTEM domain requires manual review"
     image_inbox_hint = any(path.startswith("extensions/image-inbox/") for path in candidate_files)
+    docs_hint = any(
+        path.startswith(prefix)
+        for path in candidate_files
+        for prefix in PROJECT_DOMAINS["DOCS"]["allowed_prefixes"]
+    )
 
     scope_errors = {}
     for project_id in PROJECT_SCOPE_FILES:
@@ -241,6 +271,20 @@ def project_scope_for_files(candidate_files):
         allowed_paths = set(scope["allowed_paths"])
         if all(path in allowed_paths for path in candidate_files):
             return scope, project_id, ""
+
+    if docs_hint:
+        docs = PROJECT_DOMAINS["DOCS"]
+        if len(candidate_files) > docs["max_files"]:
+            return None, "DOCS", "DOCS domain file count exceeds max_files"
+        for path in candidate_files:
+            if not any(path.startswith(prefix) for prefix in docs["allowed_prefixes"]):
+                return None, "DOCS", f"{path}: outside DOCS allowed_prefixes"
+            if not any(path.endswith(ext) for ext in docs["allowed_extensions"]):
+                return None, "DOCS", f"{path}: outside DOCS allowed_extensions"
+            for pattern in docs["blocked_paths"]:
+                if scope_pattern_matches(pattern, path):
+                    return None, "DOCS", f"{path}: blocked by DOCS domain"
+        return docs, "DOCS", ""
 
     if image_inbox_hint:
         if "PROJECT_IMAGE_INBOX" in scope_errors:
@@ -253,6 +297,14 @@ def project_scope_path_allowed(scope, path):
     for pattern in scope["blocked_paths"]:
         if scope_pattern_matches(pattern, path):
             return False, "blocked by project scope"
+    allowed_prefixes = scope.get("allowed_prefixes") or []
+    allowed_extensions = scope.get("allowed_extensions") or []
+    if allowed_prefixes:
+        if not any(path.startswith(prefix) for prefix in allowed_prefixes):
+            return False, "outside project scope allowed_prefixes"
+        if allowed_extensions and not any(path.endswith(ext) for ext in allowed_extensions):
+            return False, "outside project scope allowed_extensions"
+        return True, "PROJECT_SCOPE_ALLOWED"
     if path not in set(scope["allowed_paths"]):
         return False, "outside project scope allowed_paths"
     return True, "PROJECT_SCOPE_ALLOWED"
