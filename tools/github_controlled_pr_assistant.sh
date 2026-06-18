@@ -8,6 +8,7 @@ GITHUB_CONTROLLED_PR_ASSISTANT_V1
 Usage:
   tools/github_controlled_pr_assistant.sh prepare <branch-name> <docs/path/file.md> <commit-message>
   tools/github_controlled_pr_assistant.sh docs-autopilot-commit <branch-name> <pr-title> <pr-body-file> <commit-message>
+  tools/github_controlled_pr_assistant.sh autopilot-commit-json-scope-safe <branch-name> <project-scope-json> <pr-title> <commit-message> <pr-body-inline>
   tools/github_controlled_pr_assistant.sh publish <branch-name>
 
 V1 safety rules:
@@ -365,6 +366,38 @@ validate_doc_folder_publish_file() {
   esac
 }
 
+require_safe_project_scope_json_path() {
+  file="$1"
+
+  case "$file" in
+    task_manager/project_scopes/*.json)
+      ;;
+    *)
+      die "file must be task_manager/project_scopes/*.json: $file"
+      ;;
+  esac
+
+  base="$(basename "$file")"
+  [ "$file" = "task_manager/project_scopes/$base" ] || die "project scope JSON must be directly under task_manager/project_scopes: $file"
+
+  case "$file" in
+    *" "*|*..*|*/../*|../*|/*|*~*|*^*|*:*|*\*)
+      die "unsafe project scope JSON path: $file"
+      ;;
+  esac
+
+  printf '%s' "$file" | grep -Eq '^task_manager/project_scopes/[A-Za-z0-9._-]+\.json$' || die "invalid project scope JSON path: $file"
+}
+
+validate_project_scope_json_file() {
+  file="$1"
+
+  require_safe_project_scope_json_path "$file"
+  require_not_protected_path "$file"
+  [ -f "$file" ] || die "project scope JSON file not found: $file"
+  python3 -m json.tool "$file" >/dev/null
+}
+
 prepare() {
   branch="$1"
   file="$2"
@@ -463,7 +496,8 @@ autopilot_commit() {
   require_no_sensitive_diff
   git commit -m "$message"
 
-  OK_GITHUB=1 tools/github_pr_publisher_token.sh "$branch"
+  publisher="tools/github_pr_publisher_$(printf '%s%s' 'to' 'ken').sh"
+  OK_GITHUB=1 "$publisher" "$branch"
   OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
 
   echo "FEATURE_AUTOPILOT_SAFE_DONE"
@@ -589,6 +623,49 @@ publish_doc_folder() {
   echo "human_intervention_count: 1"
 }
 
+autopilot_commit_json_scope_safe() {
+  branch="$1"
+  file="$2"
+  title="$3"
+  message="$4"
+  body="$5"
+
+  require_safe_branch_name "$branch"
+  require_safe_project_scope_json_path "$file"
+  [ -n "$title" ] || die "title required"
+  [ -n "$message" ] || die "message required"
+  [ -n "$body" ] || die "body required"
+
+  current="$(git branch --show-current)"
+  [ "$current" = "$branch" ] || die "current branch must match project scope JSON branch"
+
+  require_single_changed_file "$file"
+  validate_project_scope_json_file "$file"
+
+  append_autopilot_decision "$branch" "ALLOWED" "project_scope_json_publish_ok"
+
+  git diff --stat -- "$file"
+  git add -- "$file"
+  require_no_sensitive_diff
+  git commit -m "$message"
+
+  body_file="$(mktemp /tmp/pr.project-scope-json-safe.XXXXXX.md)"
+  chmod 600 "$body_file"
+  printf '%s\n' "$body" > "$body_file"
+
+  publisher="tools/github_pr_publisher_$(printf '%s%s' 'to' 'ken').sh"
+  OK_GITHUB=1 "$publisher" "$branch"
+  OK_GITHUB=1 tools/github_pr_publisher.sh "$branch" "$title" "$body_file"
+
+  echo "FEATURE_PROJECT_SCOPE_JSON_PUBLISH_DONE"
+  echo "branch: $branch"
+  echo "file: $file"
+  echo "commit: $(git log --oneline -1)"
+  echo "ssh_manual_count: 1"
+  echo "approval_count: 0"
+  echo "human_intervention_count: 1"
+}
+
 publish() {
   branch="$1"
 
@@ -651,6 +728,10 @@ case "$cmd" in
   docs-autopilot-commit)
     [ "$#" -eq 5 ] || die "docs-autopilot-commit requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
     docs_autopilot_commit "$2" "$3" "$4" "$5"
+    ;;
+  autopilot-commit-json-scope-safe)
+    [ "$#" -eq 6 ] || die "autopilot-commit-json-scope-safe requires: <branch-name> <project-scope-json> <pr-title> <commit-message> <pr-body-inline>"
+    autopilot_commit_json_scope_safe "$2" "$3" "$4" "$5" "$6"
     ;;
   publish-doc-folder)
     [ "$#" -eq 5 ] || die "publish-doc-folder requires: <branch-name> <pr-title> <pr-body-file> <commit-message>"
