@@ -35,6 +35,7 @@ AUTO_MERGE_BLOCKED_PREFIXES = (
 )
 PROJECT_SCOPE_FILES = {
     "PROJECT_IMAGE_INBOX": "task_manager/project_scopes/PROJECT_IMAGE_INBOX.json",
+    "PROJECT_AUTOMERGE_DRY_RUN_TEST": "task_manager/project_scopes/PROJECT_AUTOMERGE_DRY_RUN_TEST.json",
 }
 
 validations = []
@@ -229,14 +230,21 @@ def load_project_scope(project_id):
 def project_scope_for_files(candidate_files):
     if not candidate_files:
         return None, None, "no files to match project scope"
-    scope, err = load_project_scope("PROJECT_IMAGE_INBOX")
     image_inbox_hint = any(path.startswith("extensions/image-inbox/") for path in candidate_files)
-    if not scope:
-        return None, "PROJECT_IMAGE_INBOX" if image_inbox_hint else None, err
-    allowed_paths = set(scope["allowed_paths"])
-    if all(path in allowed_paths for path in candidate_files):
-        return scope, "PROJECT_IMAGE_INBOX", ""
+
+    scope_errors = {}
+    for project_id in PROJECT_SCOPE_FILES:
+        scope, err = load_project_scope(project_id)
+        if not scope:
+            scope_errors[project_id] = err
+            continue
+        allowed_paths = set(scope["allowed_paths"])
+        if all(path in allowed_paths for path in candidate_files):
+            return scope, project_id, ""
+
     if image_inbox_hint:
+        if "PROJECT_IMAGE_INBOX" in scope_errors:
+            return None, "PROJECT_IMAGE_INBOX", scope_errors["PROJECT_IMAGE_INBOX"]
         return None, "PROJECT_IMAGE_INBOX", "files are outside PROJECT_IMAGE_INBOX allowed_paths"
     return None, None, "no matching approved project scope"
 
