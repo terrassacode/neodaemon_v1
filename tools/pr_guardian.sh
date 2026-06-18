@@ -35,6 +35,7 @@ AUTO_MERGE_BLOCKED_PREFIXES = (
 )
 PROJECT_SCOPE_FILES = {
     "PROJECT_IMAGE_INBOX": "task_manager/project_scopes/PROJECT_IMAGE_INBOX.json",
+    "PROJECT_AUTOMERGE_DRY_RUN_TEST": "task_manager/project_scopes/PROJECT_AUTOMERGE_DRY_RUN_TEST.json",
 }
 
 validations = []
