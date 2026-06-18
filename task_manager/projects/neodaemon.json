@@ -19,6 +19,34 @@
     "Design Project Executor implementation after documentation model stabilizes",
     "Design explicit CORECLAW startup context loader or project reference bridge."
   ],
+  "coreclaw_startup_reference_bridge": {
+    "status": "DOCUMENTAL_REFERENCE_ONLY",
+    "runtime_loading_verified": false,
+    "coreclaw_startup_files": [
+      "AGENTS.md",
+      "SOUL.md",
+      "USER.md",
+      "TOOLS.md",
+      "MEMORY.md"
+    ],
+    "policy": {
+      "main_private_session": [
+        "AGENTS.md",
+        "SOUL.md",
+        "USER.md",
+        "TOOLS.md",
+        "MEMORY.md"
+      ],
+      "shared_group_context": [
+        "AGENTS.md",
+        "SOUL.md",
+        "USER.md",
+        "TOOLS.md"
+      ],
+      "memory_policy": "MEMORY.md is allowed only in main/private session and excluded in shared/group context."
+    },
+    "note": "These files are expected startup context references, not proof of runtime loading."
+  },
   "evidence": [
     "PR #100",
     "PR #101",
@@ -35,9 +63,11 @@
     "OpenClaw-NeoDaemon-Skill/references/openclaw_role_model_v1.md",
     "MEMORY.md",
     "scripts/project/coreclaw_startup_context_audit_v1.py",
+    "OpenClaw-NeoDaemon-Skill/references/coreclaw_startup_context_loader_design_v1.md",
     "PR #202",
     "PR #203",
-    "PR #204"
+    "PR #204",
+    "PR #206"
   ],
-  "last_updated": "2026-06-14"
+  "last_updated": "2026-06-18"
 }
