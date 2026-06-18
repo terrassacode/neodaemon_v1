@@ -22,6 +22,7 @@
   "coreclaw_startup_reference_bridge": {
     "status": "DOCUMENTAL_REFERENCE_ONLY",
     "runtime_loading_verified": false,
+    "missing_runtime_bridge": true,
     "coreclaw_startup_files": [
       "AGENTS.md",
       "SOUL.md",
@@ -43,9 +44,23 @@
         "USER.md",
         "TOOLS.md"
       ],
-      "memory_policy": "MEMORY.md is allowed only in main/private session and excluded in shared/group context."
+      "memory_policy": "MEMORY.md is allowed only in main/private session and excluded in shared/group context.",
+      "runtime_policy": "These files are expected startup context references, not proof of runtime loading. The runtime bridge remains pending until a specific implementation is approved."
     },
-    "note": "These files are expected startup context references, not proof of runtime loading."
+    "evidence": [
+      "MEMORY.md",
+      "scripts/project/coreclaw_startup_context_audit_v1.py",
+      "OpenClaw-NeoDaemon-Skill/references/coreclaw_startup_context_loader_design_v1.md",
+      "OpenClaw-NeoDaemon-Skill/references/coreclaw_source_hierarchy_v1.md",
+      "OpenClaw-NeoDaemon-Skill/references/neodaemon_knowledge_system_design_v1.md",
+      "PR #202",
+      "PR #203",
+      "PR #204",
+      "PR #205",
+      "PR #206",
+      "PR #207"
+    ],
+    "note": "This bridge records the expected CORECLAW project references only. Runtime loading is not claimed."
   },
   "evidence": [
     "PR #100",
@@ -64,10 +79,14 @@
     "MEMORY.md",
     "scripts/project/coreclaw_startup_context_audit_v1.py",
     "OpenClaw-NeoDaemon-Skill/references/coreclaw_startup_context_loader_design_v1.md",
+    "OpenClaw-NeoDaemon-Skill/references/coreclaw_source_hierarchy_v1.md",
+    "OpenClaw-NeoDaemon-Skill/references/neodaemon_knowledge_system_design_v1.md",
     "PR #202",
     "PR #203",
     "PR #204",
-    "PR #206"
+    "PR #205",
+    "PR #206",
+    "PR #207"
   ],
   "last_updated": "2026-06-18"
 }
