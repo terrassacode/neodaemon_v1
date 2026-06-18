@@ -1,0 +1,21 @@
+{
+  "project_id": "PROJECT_AUTOMERGE_DRY_RUN_TEST",
+  "status": "APPROVED",
+  "gpt_audit": "SCOPE_APPROVED_LOW_RISK",
+  "allowed_paths": [
+    "OpenClaw-NeoDaemon-Skill/references/automerge_dry_run_test.md"
+  ],
+  "blocked_paths": [
+    "tools/**",
+    "scripts/**",
+    "gateway/**",
+    "runtime/**",
+    "models/**",
+    "dashboard-v2/**",
+    "extensions/**",
+    "package-lock.json"
+  ],
+  "max_risk": "LOW",
+  "automerge_allowed": true,
+  "runtime_required": false
+}
